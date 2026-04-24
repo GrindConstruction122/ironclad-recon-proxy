@@ -12,14 +12,12 @@
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "methods": ["GET", "POST", "OPTIONS"],
-      "headers": {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type"
-      },
-      "dest": "/api/$1.js"
+      "src": "/api/analyze",
+      "dest": "/api/analyze.js"
+    },
+    {
+      "src": "/api/health",
+      "dest": "/api/health.js"
     }
   ]
 }
