@@ -1,28 +1,29 @@
 const express = require('express');
-const cors = require('cors');
 const fetch = require('node-fetch');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const apiKey = process.env.ANTHROPIC_API_KEY || process.env.anthropic_api_key || '';
-console.log('ENV CHECK — ANTHROPIC_API_KEY present:', !!apiKey);
-console.log('ENV CHECK — key length:', apiKey.length);
-console.log('ENV CHECK — PORT:', PORT);
+const apiKey = process.env.ANTHROPIC_API_KEY || '';
+console.log('KEY PRESENT:', !!apiKey, '| LENGTH:', apiKey.length);
 
-app.use(cors());
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 
 app.post('/api/analyze', async (req, res) => {
   try {
-    const key = process.env.ANTHROPIC_API_KEY || process.env.anthropic_api_key || '';
-    
+    const key = process.env.ANTHROPIC_API_KEY || '';
     if (!key || key.length < 10) {
-      console.error('API key missing. Length:', key.length);
-      return res.status(500).json({ 
-        error: 'API key not configured on server.',
-        keyLength: key.length
-      });
+      return res.status(500).json({ error: 'API key not configured on server.', keyLength: key.length });
     }
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -45,11 +46,7 @@ app.post('/api/analyze', async (req, res) => {
 
 app.get('/health', (req, res) => {
   const key = process.env.ANTHROPIC_API_KEY || '';
-  res.json({ 
-    status: 'ok',
-    keyConfigured: !!key && key.length > 10,
-    keyLength: key.length
-  });
+  res.json({ status: 'ok', keyConfigured: !!key && key.length > 10, keyLength: key.length });
 });
 
 app.listen(PORT, () => {
