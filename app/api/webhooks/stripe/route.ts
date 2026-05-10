@@ -45,6 +45,9 @@ export async function POST(request: NextRequest) {
         const userId = sub.metadata.user_id
         if (!userId || !planId) break
 
+        const periodStart = (sub as any).current_period_start
+        const periodEnd   = (sub as any).current_period_end
+
         await supabase.from('subscriptions').upsert({
           user_id:                userId,
           stripe_customer_id:     sub.customer as string,
@@ -54,8 +57,8 @@ export async function POST(request: NextRequest) {
           token_limit:            PLAN_TOKEN_LIMITS[planId] ?? 0,
           tokens_used:            0,
           tokens_banked:          0,
-          current_period_start:   new Date(sub.current_period_start * 1000).toISOString(),
-          current_period_end:     new Date(sub.current_period_end * 1000).toISOString(),
+          current_period_start:   periodStart ? new Date(periodStart * 1000).toISOString() : null,
+          current_period_end:     periodEnd   ? new Date(periodEnd   * 1000).toISOString() : null,
           updated_at:             new Date().toISOString(),
         }, { onConflict: 'user_id' })
         break
@@ -63,21 +66,24 @@ export async function POST(request: NextRequest) {
 
       case 'invoice.paid': {
         const invoice = event.data.object as Stripe.Invoice
-        const subId = invoice.subscription as string
+        const subId = (invoice as any).subscription as string
         if (!subId) break
 
         const stripeSub = await stripe.subscriptions.retrieve(subId)
-        const userId = stripeSub.metadata.user_id
-        const planId = stripeSub.metadata.plan_id || getPlanFromPriceId(stripeSub.items.data[0].price.id)
+        const userId  = stripeSub.metadata.user_id
+        const planId  = stripeSub.metadata.plan_id || getPlanFromPriceId(stripeSub.items.data[0].price.id)
         if (!userId || !planId) break
+
+        const periodStart = (stripeSub as any).current_period_start
+        const periodEnd   = (stripeSub as any).current_period_end
 
         await supabase.from('subscriptions').update({
           status:               'active',
           plan:                 planId,
           token_limit:          PLAN_TOKEN_LIMITS[planId] ?? 0,
           tokens_used:          0,
-          current_period_start: new Date(stripeSub.current_period_start * 1000).toISOString(),
-          current_period_end:   new Date(stripeSub.current_period_end * 1000).toISOString(),
+          current_period_start: periodStart ? new Date(periodStart * 1000).toISOString() : null,
+          current_period_end:   periodEnd   ? new Date(periodEnd   * 1000).toISOString() : null,
           updated_at:           new Date().toISOString(),
         }).eq('user_id', userId)
         break
@@ -89,12 +95,15 @@ export async function POST(request: NextRequest) {
         const planId = sub.metadata.plan_id || getPlanFromPriceId(sub.items.data[0].price.id)
         if (!userId) break
 
+        const periodStart = (sub as any).current_period_start
+        const periodEnd   = (sub as any).current_period_end
+
         await supabase.from('subscriptions').update({
           status:               sub.status,
           plan:                 planId,
           token_limit:          PLAN_TOKEN_LIMITS[planId ?? ''] ?? 0,
-          current_period_start: new Date(sub.current_period_start * 1000).toISOString(),
-          current_period_end:   new Date(sub.current_period_end * 1000).toISOString(),
+          current_period_start: periodStart ? new Date(periodStart * 1000).toISOString() : null,
+          current_period_end:   periodEnd   ? new Date(periodEnd   * 1000).toISOString() : null,
           updated_at:           new Date().toISOString(),
         }).eq('user_id', userId)
         break
@@ -135,7 +144,7 @@ export async function POST(request: NextRequest) {
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice
-        const subId = invoice.subscription as string
+        const subId = (invoice as any).subscription as string
         if (!subId) break
 
         const stripeSub = await stripe.subscriptions.retrieve(subId)
