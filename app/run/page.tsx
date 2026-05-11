@@ -361,7 +361,7 @@ export default function RunPage() {
               )}
               <button
                 onClick={handleRun}
-                disabled={status === 'running'}
+                disabled={false}
                 style={{ width: '100%', background: '#0ea5e9', border: 'none', color: '#fff', fontWeight: 900, fontSize: '0.75rem', letterSpacing: 3, textTransform: 'uppercase', padding: '12px', borderRadius: 4, cursor: 'pointer' }}
               >
                 ▶ RUN THIS TOOL
