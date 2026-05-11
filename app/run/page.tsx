@@ -126,7 +126,8 @@ export default function RunPage() {
               } else if (parsed.type === 'error') {
                 throw new Error(parsed.error)
               }
-            } catch {}
+            } catch (parseErr) {
+                // skip non-JSON lines
           }
         }
       }
