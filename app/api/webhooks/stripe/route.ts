@@ -8,7 +8,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 })
 
 const PLAN_TOKEN_LIMITS: Record<string, number> = {
-  breach:   100_000,
+  breach:   200_000,
   tactical: 400_000,
   command:  1_000_000,
 }

@@ -10,9 +10,9 @@ const plans = [
     price: 49,
     priceId: process.env.NEXT_PUBLIC_STRIPE_BREACH_PRICE_ID,
     description: 'Solo estimator. Entry-level forensic review.',
-    tokens: '100,000 tokens/month',
+    tokens: '200,000 tokens/month',
     features: [
-      '100,000 tokens per month',
+      '200,000 tokens per month',
       'Full 17-module forensic audit',
       'Hard stop enforcement',
       'PDF export',
