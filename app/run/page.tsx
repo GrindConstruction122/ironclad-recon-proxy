@@ -137,7 +137,6 @@ export default function RunPage() {
       setError(err.message || 'Run failed. Try again.')
       setStatus('error')
     }
-  }
   function handleExport()
     if (!output) return
     const blob = new Blob([output], { type: 'text/plain' })
