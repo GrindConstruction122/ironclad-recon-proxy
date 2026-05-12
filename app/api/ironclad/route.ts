@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { CATEGORIES } from '@/lib/tools'
+import { CATEGORIES, RECON_PREAMBLE } from '@/lib/tools'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -118,13 +118,15 @@ export async function POST(request: NextRequest) {
     }
 
     const userText = contentBlocks.length === 0 && !context
-      ? 'No documents uploaded. Provide a general framework and checklist for this analysis type with key questions an estimator should be asking.'
-      : context || 'Analyze the uploaded documents and provide your full analysis.'
+      ? `No documents uploaded. Project name: ${projectName}. Tool: ${tool.name}. Provide a generic framework and checklist for this analysis type with key questions an estimator should be asking. Per the preamble, mark all claims as [GENERIC FRAMEWORK].`
+      : context || `Project: ${projectName}. Tool: ${tool.name}. Analyze the uploaded documents and provide your full analysis per the output discipline rules in the preamble.`
 
     contentBlocks.push({ type: 'text', text: userText })
 
     const model     = tool.model === 'sonnet' ? SONNET : HAIKU
     const maxTokens = tool.model === 'sonnet' ? 4000 : 2000
+
+    const systemPrompt = RECON_PREAMBLE + tool.prompt
 
     const { data: run, error: runError } = await serviceClient
       .from('runs')
@@ -139,7 +141,7 @@ export async function POST(request: NextRequest) {
     const message = await anthropic.messages.create({
       model,
       max_tokens: maxTokens,
-      system: tool.prompt,
+      system: systemPrompt,
       messages: [{ role: 'user', content: contentBlocks }],
     })
 
@@ -162,16 +164,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ run_id: run.id, output, tokens_used: totalTokens })
 
   } catch (err: any) {
-  console.error('IRONCLAD API error:', err)
-  
-  let userMessage = 'Something went wrong. Please try again.'
-  if (err.status === 529 || err.message?.includes('Overloaded')) {
-    userMessage = 'Anthropic servers are temporarily overloaded. Please wait 30 seconds and try again.'
-  } else if (err.status === 429 || err.message?.includes('rate_limit')) {
-    userMessage = 'Rate limit reached. Please wait a moment and try again.'
-  } else if (err.message?.includes('credit')) {
-    userMessage = 'API credit issue. Please contact support.'
+    console.error('IRONCLAD API error:', err)
+    
+    let userMessage = 'Something went wrong. Please try again.'
+    if (err.status === 529 || err.message?.includes('Overloaded')) {
+      userMessage = 'Anthropic servers are temporarily overloaded. Please wait 30 seconds and try again.'
+    } else if (err.status === 429 || err.message?.includes('rate_limit')) {
+      userMessage = 'Rate limit reached. Please wait a moment and try again.'
+    } else if (err.message?.includes('credit')) {
+      userMessage = 'API credit issue. Please contact support.'
+    }
+    
+    return NextResponse.json({ error: userMessage }, { status: err.status || 500 })
   }
-  
-  return NextResponse.json({ error: userMessage }, { status: err.status || 500 })
 }
