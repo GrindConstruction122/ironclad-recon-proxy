@@ -51,6 +51,30 @@ export default function RunPage() {
     }
   }, [output])
 
+  function selectTool(tool: Tool) {
+    setSelectedTool(tool)
+    setStatus('idle')
+    setOutput('')
+    setError(null)
+    setTokensUsed(null)
+  }
+
+  function selectCategory(catId: string) {
+    setActiveCatId(catId)
+    setSelectedTool(null)
+    setStatus('idle')
+    setOutput('')
+    setError(null)
+    setTokensUsed(null)
+  }
+
+  function resetRun() {
+    setStatus('idle')
+    setOutput('')
+    setError(null)
+    setTokensUsed(null)
+  }
+
   function handleFiles(files: FileList | File[]) {
     const newFiles = Array.from(files).map(f => ({
       file: f,
@@ -223,7 +247,7 @@ export default function RunPage() {
         {CATEGORIES.map(cat => (
           <button
             key={cat.id}
-            onClick={() => { setActiveCatId(cat.id); setSelectedTool(null) }}
+            onClick={() => selectCategory(cat.id)}
             style={{ padding: '12px 20px', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem', letterSpacing: 2, textTransform: 'uppercase', color: activeCatId === cat.id ? '#38bdf8' : '#94a3b8', borderBottom: `3px solid ${activeCatId === cat.id ? '#0ea5e9' : 'transparent'}`, background: activeCatId === cat.id ? 'rgba(14,165,233,0.06)' : 'none', border: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}
           >
             {cat.icon} {cat.name}
@@ -245,7 +269,7 @@ export default function RunPage() {
             {activeCat.tools.map(tool => (
               <div
                 key={tool.id}
-                onClick={() => setSelectedTool(tool)}
+                onClick={() => selectTool(tool)}
                 style={{ background: selectedTool?.id === tool.id ? 'rgba(14,165,233,0.12)' : '#0d1520', border: `1px solid ${selectedTool?.id === tool.id ? '#0ea5e9' : 'rgba(14,165,233,0.12)'}`, borderRadius: 4, padding: 18, cursor: 'pointer', transition: 'all 0.15s' }}
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -256,7 +280,7 @@ export default function RunPage() {
                 </div>
                 <p style={{ fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.5, marginBottom: 12 }}>{tool.desc}</p>
                 <button
-                  onClick={e => { e.stopPropagation(); setSelectedTool(tool) }}
+                  onClick={e => { e.stopPropagation(); selectTool(tool) }}
                   style={{ background: 'rgba(14,165,233,0.15)', border: '1px solid rgba(14,165,233,0.3)', color: '#38bdf8', fontSize: '0.65rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', padding: '6px 12px', borderRadius: 2, cursor: 'pointer' }}
                 >
                   ▶ SELECT TOOL
@@ -330,6 +354,11 @@ export default function RunPage() {
                 </div>
               </div>
             )}
+            {status === 'running' && (
+              <div style={{ color: '#94a3b8', fontSize: '0.78rem', marginBottom: 12 }}>
+                Analyzing documents...
+              </div>
+            )}
             {(status === 'running' || status === 'complete') && output && (
               <pre style={{ fontSize: '0.78rem', color: '#cbd5e1', fontFamily: 'monospace', whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
                 {output}
@@ -340,7 +369,7 @@ export default function RunPage() {
             )}
           </div>
 
-          {status === 'complete' && output && (
+          {status === 'complete' && (
             <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(14,165,233,0.15)', display: 'flex', gap: 8, alignItems: 'center' }}>
               {tokensUsed && (
                 <span style={{ fontSize: '0.65rem', color: '#94a3b8', marginRight: 'auto' }}>
@@ -349,7 +378,7 @@ export default function RunPage() {
               )}
               <button onClick={handleCopy} style={{ background: 'rgba(14,165,233,0.12)', border: '1px solid rgba(14,165,233,0.25)', color: '#38bdf8', fontSize: '0.65rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', padding: '6px 12px', borderRadius: 2, cursor: 'pointer' }}>COPY</button>
               <button onClick={handleExport} style={{ background: 'rgba(14,165,233,0.12)', border: '1px solid rgba(14,165,233,0.25)', color: '#38bdf8', fontSize: '0.65rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', padding: '6px 12px', borderRadius: 2, cursor: 'pointer' }}>EXPORT TXT</button>
-              <button onClick={() => { setStatus('idle'); setOutput(''); setTokensUsed(null) }} style={{ background: 'rgba(14,165,233,0.12)', border: '1px solid rgba(14,165,233,0.25)', color: '#38bdf8', fontSize: '0.65rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', padding: '6px 12px', borderRadius: 2, cursor: 'pointer' }}>NEW RUN</button>
+              <button onClick={resetRun} style={{ background: 'rgba(14,165,233,0.12)', border: '1px solid rgba(14,165,233,0.25)', color: '#38bdf8', fontSize: '0.65rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', padding: '6px 12px', borderRadius: 2, cursor: 'pointer' }}>NEW RUN</button>
             </div>
           )}
 
