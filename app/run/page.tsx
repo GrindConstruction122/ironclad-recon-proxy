@@ -138,8 +138,7 @@ export default function RunPage() {
       setStatus('error')
     }
   }
-
-  function handleExport() {
+  function handleExport()
     if (!output) return
     const blob = new Blob([output], { type: 'text/plain' })
     const url  = URL.createObjectURL(blob)
