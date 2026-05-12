@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     contentBlocks.push({ type: 'text', text: userText })
 
     const model     = tool.model === 'sonnet' ? SONNET : HAIKU
-    const maxTokens = tool.model === 'sonnet' ? 4000 : 2000
+    const maxTokens = tool.model === 'sonnet' ? 6000 : 3000
 
     const systemPrompt = RECON_PREAMBLE + tool.prompt
 
