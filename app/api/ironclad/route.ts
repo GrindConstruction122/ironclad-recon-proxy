@@ -8,6 +8,7 @@ import { CATEGORIES } from '@/lib/tools'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
+  maxRetries: 3,
 })
 
 const SONNET = 'claude-sonnet-4-6'
@@ -161,7 +162,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ run_id: run.id, output, tokens_used: totalTokens })
 
   } catch (err: any) {
-    console.error('IRONCLAD API error:', err)
-    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 })
+  console.error('IRONCLAD API error:', err)
+  
+  let userMessage = 'Something went wrong. Please try again.'
+  if (err.status === 529 || err.message?.includes('Overloaded')) {
+    userMessage = 'Anthropic servers are temporarily overloaded. Please wait 30 seconds and try again.'
+  } else if (err.status === 429 || err.message?.includes('rate_limit')) {
+    userMessage = 'Rate limit reached. Please wait a moment and try again.'
+  } else if (err.message?.includes('credit')) {
+    userMessage = 'API credit issue. Please contact support.'
   }
+  
+  return NextResponse.json({ error: userMessage }, { status: err.status || 500 })
 }
