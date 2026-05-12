@@ -13,7 +13,7 @@ const anthropic = new Anthropic({
 const SONNET = 'claude-sonnet-4-6'
 const HAIKU  = 'claude-haiku-4-5'
 
-export const maxDuration = 60
+export const maxDuration = 300
 export const runtime = 'nodejs'
 
 function findTool(toolId: string) {
