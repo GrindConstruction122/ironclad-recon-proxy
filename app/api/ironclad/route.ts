@@ -13,6 +13,9 @@ const anthropic = new Anthropic({
 const SONNET = 'claude-sonnet-4-20250514'
 const HAIKU  = 'claude-haiku-4-5-20251001'
 
+export const maxDuration = 60
+export const runtime = 'nodejs'
+
 function findTool(toolId: string) {
   for (const cat of CATEGORIES) {
     const tool = cat.tools.find(t => t.id === toolId)
@@ -20,8 +23,6 @@ function findTool(toolId: string) {
   }
   return null
 }
-
-export const runtime = 'nodejs'
 
 export async function POST(request: NextRequest) {
   try {
@@ -183,7 +184,10 @@ export async function POST(request: NextRequest) {
         } catch (err: any) {
           console.error('Stream error:', err)
           if (run) {
-            await serviceClient.from('runs').update({ status: 'error', updated_at: new Date().toISOString() }).eq('id', run.id)
+            await serviceClient.from('runs').update({
+              status: 'error',
+              updated_at: new Date().toISOString(),
+            }).eq('id', run.id)
           }
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`))
           controller.close()
