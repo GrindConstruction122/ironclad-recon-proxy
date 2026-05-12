@@ -124,43 +124,16 @@ export default function RunPage() {
         body: formData,
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        const data = await response.json()
         throw new Error(data.error || `Request failed: ${response.status}`)
       }
 
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      let fullOutput = ''
-
-      if (!reader) throw new Error('No response stream')
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        for (const line of chunk.split('\n')) {
-          if (line.startsWith('data: ')) {
-            const raw = line.slice(6)
-            if (raw === '[DONE]') continue
-            try {
-              const parsed = JSON.parse(raw)
-              if (parsed.type === 'text_delta') {
-                fullOutput += parsed.text
-                setOutput(fullOutput)
-              } else if (parsed.type === 'tokens_used') {
-                setTokensUsed(parsed.tokens)
-              } else if (parsed.type === 'error') {
-                throw new Error(parsed.error)
-              }
-            } catch (e) {
-              // skip non-JSON lines
-            }
-          }
-        }
-      }
-
+      setOutput(data.output || '')
+      setTokensUsed(data.tokens_used || null)
       setStatus('complete')
+
     } catch (err: any) {
       setError(err.message || 'Run failed. Try again.')
       setStatus('error')
@@ -296,7 +269,7 @@ export default function RunPage() {
             <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#94a3b8' }}>
               {selectedTool ? `${activeCat.name} → ${selectedTool.name}` : 'Select a Tool'}
             </div>
-            {status === 'running' && <span style={{ fontSize: '0.65rem', color: '#0ea5e9', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>● LIVE</span>}
+            {status === 'running' && <span style={{ fontSize: '0.65rem', color: '#0ea5e9', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>● ANALYZING...</span>}
             {status === 'complete' && <span style={{ fontSize: '0.65rem', color: '#22c55e', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>✓ COMPLETE</span>}
           </div>
 
@@ -355,17 +328,27 @@ export default function RunPage() {
               </div>
             )}
             {status === 'running' && (
-              <div style={{ color: '#94a3b8', fontSize: '0.78rem', marginBottom: 12 }}>
-                Analyzing documents...
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 16 }}>
+                <div style={{ width: 40, height: 40, border: '3px solid rgba(14,165,233,0.2)', borderTop: '3px solid #0ea5e9', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                <div style={{ color: '#94a3b8', fontSize: '0.8rem', textAlign: 'center' }}>
+                  Analyzing documents...<br />
+                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>This may take 15–30 seconds</span>
+                </div>
+                <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
               </div>
             )}
-            {(status === 'running' || status === 'complete') && output && (
+            {status === 'complete' && output && (
               <pre style={{ fontSize: '0.78rem', color: '#cbd5e1', fontFamily: 'monospace', whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
                 {output}
               </pre>
             )}
-            {status === 'error' && !output && (
-              <div style={{ color: '#fca5a5', fontSize: '0.8rem' }}>Run failed. Check your connection and try again.</div>
+            {status === 'complete' && !output && (
+              <div style={{ color: '#94a3b8', fontSize: '0.8rem', textAlign: 'center', padding: 24 }}>
+                Run completed but no output was returned. Try again.
+              </div>
+            )}
+            {status === 'error' && (
+              <div style={{ color: '#fca5a5', fontSize: '0.8rem', padding: 8 }}>{error}</div>
             )}
           </div>
 

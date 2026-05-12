@@ -125,84 +125,40 @@ export async function POST(request: NextRequest) {
     const model     = tool.model === 'sonnet' ? SONNET : HAIKU
     const maxTokens = tool.model === 'sonnet' ? 4000 : 2000
 
-    const { data: run } = await serviceClient
+    const { data: run, error: runError } = await serviceClient
       .from('runs')
       .insert({ user_id: user.id, project_name: projectName, status: 'pending' })
       .select('id')
       .single()
 
-    const encoder = new TextEncoder()
-    let fullOutput = ''
-    let totalInputTokens  = 0
-    let totalOutputTokens = 0
+    if (runError || !run) {
+      return NextResponse.json({ error: 'Failed to create run' }, { status: 500 })
+    }
 
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          if (run) {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'run_id', run_id: run.id })}\n\n`))
-          }
-
-          const response = await anthropic.messages.stream({
-            model,
-            max_tokens: maxTokens,
-            system: tool.prompt,
-            messages: [{ role: 'user', content: contentBlocks }],
-          })
-
-          for await (const chunk of response) {
-            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-              const text = chunk.delta.text
-              fullOutput += text
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text_delta', text })}\n\n`))
-            }
-            if (chunk.type === 'message_delta' && chunk.usage) {
-              totalOutputTokens = chunk.usage.output_tokens
-            }
-            if (chunk.type === 'message_start' && chunk.message.usage) {
-              totalInputTokens = chunk.message.usage.input_tokens
-            }
-          }
-
-          const totalTokens = totalInputTokens + totalOutputTokens
-
-          if (run) {
-            await serviceClient.from('runs').update({
-              status: 'complete',
-              tokens_used: totalTokens,
-              raw_output: fullOutput,
-              updated_at: new Date().toISOString(),
-            }).eq('id', run.id)
-          }
-
-          await serviceClient.rpc('deduct_tokens', { p_user_id: user.id, p_tokens: totalTokens })
-
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'tokens_used', tokens: totalTokens })}\n\n`))
-          controller.enqueue(encoder.encode(`data: [DONE]\n\n`))
-          controller.close()
-
-        } catch (err: any) {
-          console.error('Stream error:', err)
-          if (run) {
-            await serviceClient.from('runs').update({
-              status: 'error',
-              updated_at: new Date().toISOString(),
-            }).eq('id', run.id)
-          }
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`))
-          controller.close()
-        }
-      },
+    const message = await anthropic.messages.create({
+      model,
+      max_tokens: maxTokens,
+      system: tool.prompt,
+      messages: [{ role: 'user', content: contentBlocks }],
     })
 
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no',
-      },
-    })
+    const output = message.content
+      .filter((b: any) => b.type === 'text')
+      .map((b: any) => b.text)
+      .join('')
+
+    const totalTokens = (message.usage?.input_tokens || 0) + (message.usage?.output_tokens || 0)
+
+    await serviceClient.from('runs').update({
+      status: 'complete',
+      tokens_used: totalTokens,
+      raw_output: output,
+      updated_at: new Date().toISOString(),
+    }).eq('id', run.id)
+
+    await serviceClient.rpc('deduct_tokens', { p_user_id: user.id, p_tokens: totalTokens })
+
+    return NextResponse.json({ run_id: run.id, output, tokens_used: totalTokens })
 
   } catch (err: any) {
     console.error('IRONCLAD API error:', err)
