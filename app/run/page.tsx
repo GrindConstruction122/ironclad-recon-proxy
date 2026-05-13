@@ -5,17 +5,22 @@ import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { CATEGORIES, type Tool } from '@/lib/tools'
+import { uploadFileToSupabase, deleteFileFromSupabase, type UploadedFileRef } from '@/lib/upload'
 
-type RunStatus = 'idle' | 'running' | 'complete' | 'error'
+type RunStatus = 'idle' | 'uploading' | 'running' | 'complete' | 'error'
 
-interface UploadedFile {
+interface PendingFile {
   file: File
   name: string
-  size: string
+  size: number
+  sizeFormatted: string
+  uploaded?: UploadedFileRef
+  uploading?: boolean
+  error?: string
 }
 
-const WARN_SIZE = 3 * 1024 * 1024       // 3 MB
-const BLOCK_SIZE = 4.5 * 1024 * 1024    // 4.5 MB
+const MAX_FILE_SIZE = 32 * 1024 * 1024      // 32 MB per file
+const MAX_TOTAL_SIZE = 40 * 1024 * 1024     // 40 MB combined
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`
@@ -30,7 +35,7 @@ function modelColor(model: string): string {
 export default function RunPage() {
   const [activeCatId, setActiveCatId] = useState('prebid')
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null)
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
   const [projectName, setProjectName] = useState('')
   const [context, setContext] = useState('')
   const [status, setStatus] = useState<RunStatus>('idle')
@@ -38,8 +43,7 @@ export default function RunPage() {
   const [error, setError] = useState<string | null>(null)
   const [tokensUsed, setTokensUsed] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState(false)
-  const [showSizeWarning, setShowSizeWarning] = useState(false)
-  const [blockedFile, setBlockedFile] = useState<{ name: string; sizeMB: number } | null>(null)
+  const [blockedFile, setBlockedFile] = useState<{ name: string; sizeMB: number; reason: 'oversize' | 'total' } | null>(null)
 
   const outputRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -55,6 +59,9 @@ export default function RunPage() {
       outputRef.current.scrollTop = outputRef.current.scrollHeight
     }
   }, [output])
+
+  const totalSize = pendingFiles.reduce((sum, f) => sum + f.size, 0)
+  const totalSizeMB = totalSize / (1024 * 1024)
 
   function selectTool(tool: Tool) {
     setSelectedTool(tool)
@@ -80,52 +87,93 @@ export default function RunPage() {
     setTokensUsed(null)
   }
 
-  function handleFiles(files: FileList | File[]) {
-    const incoming = Array.from(files)
-    const blocked = incoming.find(f => f.size > BLOCK_SIZE)
+  async function handleFiles(incoming: FileList | File[]) {
+    const filesArr = Array.from(incoming)
 
-    if (blocked) {
-      setBlockedFile({ name: blocked.name, sizeMB: blocked.size / (1024 * 1024) })
+    // Check each file individually
+    for (const f of filesArr) {
+      if (f.size > MAX_FILE_SIZE) {
+        setBlockedFile({ name: f.name, sizeMB: f.size / (1024 * 1024), reason: 'oversize' })
+        return
+      }
+    }
+
+    // Check combined total
+    const newTotal = totalSize + filesArr.reduce((s, f) => s + f.size, 0)
+    if (newTotal > MAX_TOTAL_SIZE) {
+      const newestFile = filesArr[filesArr.length - 1]
+      setBlockedFile({ name: newestFile.name, sizeMB: newTotal / (1024 * 1024), reason: 'total' })
       return
     }
 
-    const hasLarge = incoming.some(f => f.size > WARN_SIZE)
-    if (hasLarge) {
-      setShowSizeWarning(true)
-    }
+    // Dedupe by name
+    const existingNames = new Set(pendingFiles.map(f => f.name))
+    const newPending: PendingFile[] = filesArr
+      .filter(f => !existingNames.has(f.name))
+      .map(f => ({
+        file: f,
+        name: f.name,
+        size: f.size,
+        sizeFormatted: formatSize(f.size),
+        uploading: true,
+      }))
 
-    const newFiles = incoming.map(f => ({
-      file: f,
-      name: f.name,
-      size: formatSize(f.size),
-    }))
-    setUploadedFiles(prev => {
-      const existing = new Set(prev.map(f => f.name))
-      return [...prev, ...newFiles.filter(f => !existing.has(f.name))]
-    })
+    if (newPending.length === 0) return
+
+    setPendingFiles(prev => [...prev, ...newPending])
+
+    // Upload each to Supabase
+    for (const pf of newPending) {
+      try {
+        const uploaded = await uploadFileToSupabase(pf.file)
+        setPendingFiles(prev => prev.map(f =>
+          f.name === pf.name ? { ...f, uploaded, uploading: false } : f
+        ))
+      } catch (err: any) {
+        setPendingFiles(prev => prev.map(f =>
+          f.name === pf.name ? { ...f, uploading: false, error: err.message } : f
+        ))
+      }
+    }
   }
 
-  function removeFile(idx: number) {
-    setUploadedFiles(prev => {
-      const next = prev.filter((_, i) => i !== idx)
-      if (!next.some(f => f.file.size > WARN_SIZE)) {
-        setShowSizeWarning(false)
+  async function removeFile(idx: number) {
+    const target = pendingFiles[idx]
+    if (target.uploaded?.path) {
+      try {
+        await deleteFileFromSupabase(target.uploaded.path)
+      } catch (err) {
+        console.warn('Failed to delete from storage', err)
       }
-      return next
-    })
+    }
+    setPendingFiles(prev => prev.filter((_, i) => i !== idx))
   }
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
     handleFiles(e.dataTransfer.files)
-  }, [])
+  }, [pendingFiles, totalSize])
 
   const activeCat = CATEGORIES.find(c => c.id === activeCatId)!
 
   async function handleRun() {
     if (!selectedTool) { setError('Select a tool first.'); return }
     if (!projectName.trim()) { setError('Enter a project name.'); return }
+
+    // Make sure no files are still uploading
+    if (pendingFiles.some(f => f.uploading)) {
+      setError('Files still uploading. Wait a moment.')
+      return
+    }
+
+    // Filter to successfully uploaded files only
+    const readyFiles = pendingFiles.filter(f => f.uploaded && !f.error)
+    const failedFiles = pendingFiles.filter(f => f.error)
+    if (failedFiles.length > 0) {
+      setError(`${failedFiles.length} file(s) failed to upload. Remove them and retry.`)
+      return
+    }
 
     setStatus('running')
     setOutput('')
@@ -136,16 +184,25 @@ export default function RunPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/login'); return }
 
-      const formData = new FormData()
-      formData.append('toolId', selectedTool.id)
-      formData.append('projectName', projectName)
-      formData.append('context', context)
-      uploadedFiles.forEach(f => formData.append('files', f.file))
+      const fileRefs = readyFiles.map(f => ({
+        name: f.uploaded!.name,
+        signedUrl: f.uploaded!.signedUrl,
+        mimeType: f.uploaded!.mimeType,
+        path: f.uploaded!.path,
+      }))
 
       const response = await fetch('/api/ironclad', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${session.access_token}` },
-        body: formData,
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          toolId: selectedTool.id,
+          projectName,
+          context,
+          fileRefs,
+        }),
       })
 
       const data = await response.json()
@@ -186,6 +243,7 @@ export default function RunPage() {
         <LargeFileModal
           fileName={blockedFile.name}
           fileSizeMB={blockedFile.sizeMB}
+          reason={blockedFile.reason}
           onClose={() => setBlockedFile(null)}
           supabase={supabase}
         />
@@ -211,18 +269,6 @@ export default function RunPage() {
         </div>
       </div>
 
-      {showSizeWarning && (
-        <div style={{ background: 'rgba(245,158,11,0.1)', borderBottom: '1px solid rgba(245,158,11,0.3)', padding: '10px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.78rem', color: '#fbbf24' }}>
-            <span style={{ fontSize: '1rem' }}>⚠️</span>
-            <span>
-              <strong>Large file detected.</strong> RECON works best with files under 3 MB. If this analysis fails, try uploading one section at a time — drawings, specs, and contract separately.
-            </span>
-          </div>
-          <button onClick={() => setShowSizeWarning(false)} style={{ background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1, padding: 4 }}>×</button>
-        </div>
-      )}
-
       <div style={{ background: '#0d1520', borderBottom: '1px solid rgba(14,165,233,0.15)', padding: '20px 32px' }}>
         <div
           onDragOver={e => { e.preventDefault(); setDragOver(true) }}
@@ -233,15 +279,28 @@ export default function RunPage() {
         >
           <input ref={fileInputRef} type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.txt" style={{ display: 'none' }} onChange={e => e.target.files && handleFiles(e.target.files)} />
           <span style={{ fontSize: '2rem' }}>📁</span>
-          <div>
+          <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 800, fontSize: '0.9rem', letterSpacing: 3, textTransform: 'uppercase', color: '#38bdf8', marginBottom: 2 }}>DROP PROJECT DOCUMENTS HERE</div>
-            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Bid packages · Contracts · Specs · Drawings · Scope docs — PDF, images, or text files</div>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+              Up to 32 MB per file · 40 MB total per analysis · PDF, images, or text
+            </div>
+            {pendingFiles.length > 0 && (
+              <div style={{ fontSize: '0.7rem', color: totalSize > MAX_TOTAL_SIZE * 0.85 ? '#fbbf24' : '#64748b', marginTop: 4, fontWeight: 600 }}>
+                Total: {totalSizeMB.toFixed(1)} MB / 40 MB
+              </div>
+            )}
           </div>
-          {uploadedFiles.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginLeft: 'auto' }} onClick={e => e.stopPropagation()}>
-              {uploadedFiles.map((f, i) => (
-                <div key={i} style={{ background: 'rgba(14,165,233,0.12)', border: '1px solid rgba(14,165,233,0.3)', color: '#38bdf8', fontSize: '0.7rem', padding: '4px 10px', borderRadius: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  📄 {f.name} ({f.size})
+          {pendingFiles.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }} onClick={e => e.stopPropagation()}>
+              {pendingFiles.map((f, i) => (
+                <div key={i} style={{
+                  background: f.error ? 'rgba(239,68,68,0.12)' : f.uploading ? 'rgba(245,158,11,0.12)' : 'rgba(14,165,233,0.12)',
+                  border: `1px solid ${f.error ? 'rgba(239,68,68,0.3)' : f.uploading ? 'rgba(245,158,11,0.3)' : 'rgba(14,165,233,0.3)'}`,
+                  color: f.error ? '#fca5a5' : f.uploading ? '#fbbf24' : '#38bdf8',
+                  fontSize: '0.7rem', padding: '4px 10px', borderRadius: 2, display: 'flex', alignItems: 'center', gap: 6
+                }}>
+                  {f.uploading ? '⏳' : f.error ? '⚠️' : '📄'} {f.name} ({f.sizeFormatted})
+                  {f.uploading && <span style={{ fontSize: '0.65rem' }}>uploading...</span>}
                   <button onClick={() => removeFile(i)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0 }}>×</button>
                 </div>
               ))}
@@ -344,7 +403,7 @@ export default function RunPage() {
               >
                 ▶ RUN THIS TOOL
               </button>
-              {uploadedFiles.length === 0 && (
+              {pendingFiles.length === 0 && (
                 <div style={{ fontSize: '0.65rem', color: '#94a3b8', textAlign: 'center', marginTop: 8 }}>
                   No documents uploaded — will generate a general framework
                 </div>
@@ -377,7 +436,7 @@ export default function RunPage() {
                 <div style={{ width: 40, height: 40, border: '3px solid rgba(14,165,233,0.2)', borderTop: '3px solid #0ea5e9', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                 <div style={{ color: '#94a3b8', fontSize: '0.8rem', textAlign: 'center' }}>
                   Analyzing documents...<br />
-                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>This may take 30–90 seconds</span>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>This may take 30–120 seconds for large files</span>
                 </div>
                 <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
               </div>
@@ -416,9 +475,10 @@ export default function RunPage() {
   )
 }
 
-function LargeFileModal({ fileName, fileSizeMB, onClose, supabase }: {
+function LargeFileModal({ fileName, fileSizeMB, reason, onClose, supabase }: {
   fileName: string
   fileSizeMB: number
+  reason: 'oversize' | 'total'
   onClose: () => void
   supabase: ReturnType<typeof createBrowserClient>
 }) {
@@ -445,7 +505,7 @@ function LargeFileModal({ fileName, fileSizeMB, onClose, supabase }: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim(),
-          feature: 'plan_set_mode',
+          feature: 'large_plan_set_mode',
           file_size_mb: Math.round(fileSizeMB * 10) / 10,
           user_id: user?.id || null,
         }),
@@ -460,26 +520,29 @@ function LargeFileModal({ fileName, fileSizeMB, onClose, supabase }: {
     }
   }
 
+  const title = reason === 'oversize' ? 'File Too Large' : 'Combined Upload Too Large'
+  const message = reason === 'oversize'
+    ? <><strong style={{ color: '#fff' }}>{fileName}</strong> is {fileSizeMB.toFixed(1)} MB. RECON handles up to 32 MB per file.<br /><br />Large-plan-set support is coming soon. For now, run analyses one file at a time, or split your plan set into sections (drawings, specs, contract).</>
+    : <>Combined upload is {fileSizeMB.toFixed(1)} MB. RECON handles up to 40 MB total per analysis.<br /><br />Remove a file or run separately. Large-plan-set support is coming soon.</>
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
       <div style={{ background: '#0d1520', border: '1px solid rgba(14,165,233,0.3)', borderRadius: 6, padding: 28, maxWidth: 520, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
           <div style={{ fontWeight: 900, fontSize: '1.1rem', letterSpacing: 3, textTransform: 'uppercase', color: '#38bdf8' }}>
-            📋 Plan Set Mode — Coming Soon
+            📋 {title}
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.4rem', cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
         </div>
 
         <div style={{ color: '#cbd5e1', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: 18 }}>
-          <strong style={{ color: '#fff' }}>{fileName}</strong> is {fileSizeMB.toFixed(1)} MB. RECON currently handles files up to 4.5 MB.
-          <br /><br />
-          Full plan-set support is coming soon. In the meantime, you can run analyses today by uploading one section at a time — drawings, specs, and contract separately.
+          {message}
         </div>
 
         {!submitted ? (
           <>
             <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: 8, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>
-              Want early access?
+              Want early access to bigger plan sets?
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
@@ -503,13 +566,9 @@ function LargeFileModal({ fileName, fileSizeMB, onClose, supabase }: {
           </>
         ) : (
           <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', fontSize: '0.85rem', padding: '12px 16px', borderRadius: 4 }}>
-            ✓ You're on the list. We'll email you when plan-set support is live.
+            ✓ You're on the list. We'll email you when bigger plan sets are supported.
           </div>
         )}
-
-        <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(14,165,233,0.1)', fontSize: '0.7rem', color: '#64748b', lineHeight: 1.5 }}>
-          <strong style={{ color: '#94a3b8' }}>Workaround:</strong> Split your PDF into sections by discipline (civil, structural, MEP) or by document type (drawings vs. specs vs. contract). Each section runs as its own analysis.
-        </div>
       </div>
     </div>
   )

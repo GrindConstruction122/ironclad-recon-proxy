@@ -25,6 +25,36 @@ function findTool(toolId: string) {
   return null
 }
 
+interface FileRef {
+  name: string
+  signedUrl: string
+  mimeType: string
+  path: string
+}
+
+/**
+ * Fetch file from Supabase signed URL, upload to Anthropic Files API,
+ * return the Anthropic file_id.
+ */
+async function uploadToAnthropicFiles(fileRef: FileRef): Promise<string> {
+  // Fetch the file from Supabase
+  const fetchRes = await fetch(fileRef.signedUrl)
+  if (!fetchRes.ok) {
+    throw new Error(`Failed to fetch file from storage: ${fetchRes.status}`)
+  }
+  const fileBlob = await fetchRes.blob()
+
+  // Wrap as File-like object for Anthropic SDK
+  const file = new File([fileBlob], fileRef.name, { type: fileRef.mimeType })
+
+  // Upload to Anthropic Files API (beta)
+  const uploaded = await (anthropic as any).beta.files.upload({
+    file,
+  })
+
+  return uploaded.id
+}
+
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('Authorization')
@@ -72,17 +102,19 @@ export async function POST(request: NextRequest) {
       }, { status: 402 })
     }
 
-    let formData: FormData
+    let body: any
     try {
-      formData = await request.formData()
+      body = await request.json()
     } catch (e) {
-      return NextResponse.json({ error: 'Failed to parse form data' }, { status: 400 })
+      return NextResponse.json({ error: 'Failed to parse request body' }, { status: 400 })
     }
 
-    const toolId      = formData.get('toolId') as string
-    const context     = formData.get('context') as string || ''
-    const files       = formData.getAll('files') as File[]
-    const projectName = formData.get('projectName') as string || 'Untitled Project'
+    const { toolId, projectName = 'Untitled Project', context = '', fileRefs = [] } = body as {
+      toolId: string
+      projectName?: string
+      context?: string
+      fileRefs?: FileRef[]
+    }
 
     if (!toolId) {
       return NextResponse.json({ error: 'No tool specified' }, { status: 400 })
@@ -93,27 +125,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Tool not found' }, { status: 404 })
     }
 
+    // Upload all files to Anthropic Files API in parallel
     const contentBlocks: any[] = []
+    if (fileRefs.length > 0) {
+      const uploadResults = await Promise.allSettled(
+        fileRefs.map(fr => uploadToAnthropicFiles(fr))
+      )
 
-    for (const file of files) {
-      if (!file || !file.size) continue
-      const buffer = await file.arrayBuffer()
-      const base64 = Buffer.from(buffer).toString('base64')
-      const mimeType = file.type || 'application/octet-stream'
+      const failed = uploadResults.filter(r => r.status === 'rejected')
+      if (failed.length > 0) {
+        const firstError = (failed[0] as PromiseRejectedResult).reason
+        console.error('File upload to Anthropic failed:', firstError)
+        return NextResponse.json({
+          error: `Failed to upload ${failed.length} of ${fileRefs.length} file(s). Try again or use smaller files.`
+        }, { status: 500 })
+      }
 
-      if (mimeType === 'application/pdf') {
-        contentBlocks.push({
-          type: 'document',
-          source: { type: 'base64', media_type: 'application/pdf', data: base64 }
-        })
-      } else if (mimeType.startsWith('image/')) {
-        contentBlocks.push({
-          type: 'image',
-          source: { type: 'base64', media_type: mimeType, data: base64 }
-        })
-      } else {
-        const text = Buffer.from(buffer).toString('utf-8')
-        contentBlocks.push({ type: 'text', text: `[File: ${file.name}]\n${text}` })
+      for (let i = 0; i < uploadResults.length; i++) {
+        const result = uploadResults[i]
+        if (result.status !== 'fulfilled') continue
+        const fileId = result.value
+        const fileRef = fileRefs[i]
+
+        if (fileRef.mimeType === 'application/pdf') {
+          contentBlocks.push({
+            type: 'document',
+            source: { type: 'file', file_id: fileId }
+          })
+        } else if (fileRef.mimeType.startsWith('image/')) {
+          contentBlocks.push({
+            type: 'image',
+            source: { type: 'file', file_id: fileId }
+          })
+        } else {
+          // Text files — fetch and inline as text
+          const textRes = await fetch(fileRef.signedUrl)
+          const text = await textRes.text()
+          contentBlocks.push({ type: 'text', text: `[File: ${fileRef.name}]\n${text}` })
+        }
       }
     }
 
@@ -138,11 +187,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create run' }, { status: 500 })
     }
 
-    const message = await anthropic.messages.create({
+    const message = await (anthropic as any).beta.messages.create({
       model,
       max_tokens: maxTokens,
       system: systemPrompt,
       messages: [{ role: 'user', content: contentBlocks }],
+      betas: ['files-api-2025-04-14'],
     })
 
     const output = message.content
@@ -173,6 +223,8 @@ export async function POST(request: NextRequest) {
       userMessage = 'Rate limit reached. Please wait a moment and try again.'
     } else if (err.message?.includes('credit')) {
       userMessage = 'API credit issue. Please contact support.'
+    } else if (err.message?.includes('Failed to fetch file')) {
+      userMessage = 'Could not retrieve uploaded file. Try uploading again.'
     }
     
     return NextResponse.json({ error: userMessage }, { status: err.status || 500 })
