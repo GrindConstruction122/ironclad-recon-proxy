@@ -14,6 +14,9 @@ interface UploadedFile {
   size: string
 }
 
+const WARN_SIZE = 3 * 1024 * 1024       // 3 MB
+const BLOCK_SIZE = 4.5 * 1024 * 1024    // 4.5 MB
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`
@@ -35,6 +38,8 @@ export default function RunPage() {
   const [error, setError] = useState<string | null>(null)
   const [tokensUsed, setTokensUsed] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [showSizeWarning, setShowSizeWarning] = useState(false)
+  const [blockedFile, setBlockedFile] = useState<{ name: string; sizeMB: number } | null>(null)
 
   const outputRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -76,7 +81,20 @@ export default function RunPage() {
   }
 
   function handleFiles(files: FileList | File[]) {
-    const newFiles = Array.from(files).map(f => ({
+    const incoming = Array.from(files)
+    const blocked = incoming.find(f => f.size > BLOCK_SIZE)
+
+    if (blocked) {
+      setBlockedFile({ name: blocked.name, sizeMB: blocked.size / (1024 * 1024) })
+      return
+    }
+
+    const hasLarge = incoming.some(f => f.size > WARN_SIZE)
+    if (hasLarge) {
+      setShowSizeWarning(true)
+    }
+
+    const newFiles = incoming.map(f => ({
       file: f,
       name: f.name,
       size: formatSize(f.size),
@@ -88,7 +106,13 @@ export default function RunPage() {
   }
 
   function removeFile(idx: number) {
-    setUploadedFiles(prev => prev.filter((_, i) => i !== idx))
+    setUploadedFiles(prev => {
+      const next = prev.filter((_, i) => i !== idx)
+      if (!next.some(f => f.file.size > WARN_SIZE)) {
+        setShowSizeWarning(false)
+      }
+      return next
+    })
   }
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -158,6 +182,15 @@ export default function RunPage() {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#080c12', color: '#f0f6ff', fontFamily: 'sans-serif' }}>
 
+      {blockedFile && (
+        <LargeFileModal
+          fileName={blockedFile.name}
+          fileSizeMB={blockedFile.sizeMB}
+          onClose={() => setBlockedFile(null)}
+          supabase={supabase}
+        />
+      )}
+
       <div style={{ background: 'linear-gradient(180deg,#050810 0%,#0d1520 100%)', borderBottom: '2px solid rgba(14,165,233,0.4)', padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 36, height: 36, background: '#0ea5e9', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 14 }}>IC</div>
@@ -177,6 +210,18 @@ export default function RunPage() {
           <Link href="/dashboard" style={{ color: '#94a3b8', fontSize: '0.8rem', textDecoration: 'none' }}>← Dashboard</Link>
         </div>
       </div>
+
+      {showSizeWarning && (
+        <div style={{ background: 'rgba(245,158,11,0.1)', borderBottom: '1px solid rgba(245,158,11,0.3)', padding: '10px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.78rem', color: '#fbbf24' }}>
+            <span style={{ fontSize: '1rem' }}>⚠️</span>
+            <span>
+              <strong>Large file detected.</strong> RECON works best with files under 3 MB. If this analysis fails, try uploading one section at a time — drawings, specs, and contract separately.
+            </span>
+          </div>
+          <button onClick={() => setShowSizeWarning(false)} style={{ background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1, padding: 4 }}>×</button>
+        </div>
+      )}
 
       <div style={{ background: '#0d1520', borderBottom: '1px solid rgba(14,165,233,0.15)', padding: '20px 32px' }}>
         <div
@@ -332,7 +377,7 @@ export default function RunPage() {
                 <div style={{ width: 40, height: 40, border: '3px solid rgba(14,165,233,0.2)', borderTop: '3px solid #0ea5e9', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                 <div style={{ color: '#94a3b8', fontSize: '0.8rem', textAlign: 'center' }}>
                   Analyzing documents...<br />
-                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>This may take 15–30 seconds</span>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>This may take 30–90 seconds</span>
                 </div>
                 <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
               </div>
@@ -365,6 +410,105 @@ export default function RunPage() {
             </div>
           )}
 
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LargeFileModal({ fileName, fileSizeMB, onClose, supabase }: {
+  fileName: string
+  fileSizeMB: number
+  onClose: () => void
+  supabase: ReturnType<typeof createBrowserClient>
+}) {
+  const [email, setEmail] = useState('')
+  const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user?.email) setEmail(user.email)
+    })()
+  }, [supabase])
+
+  async function handleSubmit() {
+    if (!email.trim()) { setSubmitError('Enter your email.'); return }
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          feature: 'plan_set_mode',
+          file_size_mb: Math.round(fileSizeMB * 10) / 10,
+          user_id: user?.id || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save')
+      setSubmitted(true)
+    } catch (err: any) {
+      setSubmitError(err.message || 'Could not save. Try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+      <div style={{ background: '#0d1520', border: '1px solid rgba(14,165,233,0.3)', borderRadius: 6, padding: 28, maxWidth: 520, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ fontWeight: 900, fontSize: '1.1rem', letterSpacing: 3, textTransform: 'uppercase', color: '#38bdf8' }}>
+            📋 Plan Set Mode — Coming Soon
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.4rem', cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+
+        <div style={{ color: '#cbd5e1', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: 18 }}>
+          <strong style={{ color: '#fff' }}>{fileName}</strong> is {fileSizeMB.toFixed(1)} MB. RECON currently handles files up to 4.5 MB.
+          <br /><br />
+          Full plan-set support is coming soon. In the meantime, you can run analyses today by uploading one section at a time — drawings, specs, and contract separately.
+        </div>
+
+        {!submitted ? (
+          <>
+            <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: 8, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>
+              Want early access?
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                style={{ flex: 1, background: 'rgba(14,165,233,0.05)', border: '1px solid rgba(14,165,233,0.25)', borderRadius: 4, padding: '10px 12px', color: '#f0f6ff', fontSize: '0.85rem', outline: 'none' }}
+              />
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                style={{ background: '#0ea5e9', border: 'none', color: '#fff', fontWeight: 900, fontSize: '0.7rem', letterSpacing: 2, textTransform: 'uppercase', padding: '10px 18px', borderRadius: 4, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1 }}
+              >
+                {submitting ? '...' : 'Notify Me'}
+              </button>
+            </div>
+            {submitError && (
+              <div style={{ marginTop: 10, fontSize: '0.75rem', color: '#fca5a5' }}>{submitError}</div>
+            )}
+          </>
+        ) : (
+          <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', fontSize: '0.85rem', padding: '12px 16px', borderRadius: 4 }}>
+            ✓ You're on the list. We'll email you when plan-set support is live.
+          </div>
+        )}
+
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(14,165,233,0.1)', fontSize: '0.7rem', color: '#64748b', lineHeight: 1.5 }}>
+          <strong style={{ color: '#94a3b8' }}>Workaround:</strong> Split your PDF into sections by discipline (civil, structural, MEP) or by document type (drawings vs. specs vs. contract). Each section runs as its own analysis.
         </div>
       </div>
     </div>
