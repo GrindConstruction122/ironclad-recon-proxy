@@ -1,13 +1,12 @@
-import "./print.css";
 'use client'
 
+import "./print.css";
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { CATEGORIES, type Tool } from '@/lib/tools'
 import { uploadFileToSupabase, deleteFileFromSupabase, type UploadedFileRef } from '@/lib/upload'
-
 type RunStatus = 'idle' | 'uploading' | 'running' | 'complete' | 'error'
 
 interface PendingFile {
