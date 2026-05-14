@@ -37,17 +37,14 @@ interface FileRef {
  * return the Anthropic file_id.
  */
 async function uploadToAnthropicFiles(fileRef: FileRef): Promise<string> {
-  // Fetch the file from Supabase
   const fetchRes = await fetch(fileRef.signedUrl)
   if (!fetchRes.ok) {
     throw new Error(`Failed to fetch file from storage: ${fetchRes.status}`)
   }
   const fileBlob = await fetchRes.blob()
 
-  // Wrap as File-like object for Anthropic SDK
   const file = new File([fileBlob], fileRef.name, { type: fileRef.mimeType })
 
-  // Upload to Anthropic Files API (beta)
   const uploaded = await (anthropic as any).beta.files.upload({
     file,
   })
@@ -158,7 +155,6 @@ export async function POST(request: NextRequest) {
             source: { type: 'file', file_id: fileId }
           })
         } else {
-          // Text files — fetch and inline as text
           const textRes = await fetch(fileRef.signedUrl)
           const text = await textRes.text()
           contentBlocks.push({ type: 'text', text: `[File: ${fileRef.name}]\n${text}` })
@@ -173,7 +169,7 @@ export async function POST(request: NextRequest) {
     contentBlocks.push({ type: 'text', text: userText })
 
     const model     = tool.model === 'sonnet' ? SONNET : HAIKU
-    const maxTokens = tool.model === 'sonnet' ? 6000 : 3000
+    const maxTokens = tool.model === 'sonnet' ? 10000 : 4000
 
     const systemPrompt = RECON_PREAMBLE + tool.prompt
 
