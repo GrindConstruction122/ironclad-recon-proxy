@@ -1,0 +1,49 @@
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-content {
+    background: white !important;
+    color: black !important;
+    padding: 24px !important;
+    font-family: Arial, sans-serif !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+  }
+
+  .print-content h1,
+  .print-content h2,
+  .print-content h3,
+  .print-content h4 {
+    color: black !important;
+    page-break-after: avoid !important;
+  }
+
+  .print-content table {
+    border-collapse: collapse !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-content table, .print-content th, .print-content td {
+    border: 1px solid #333 !important;
+    color: black !important;
+  }
+
+  .print-content code,
+  .print-content .citation {
+    background: #f0f0f0 !important;
+    color: #333 !important;
+    border: 1px solid #ccc !important;
+  }
+
+  @page {
+    margin: 0.5in;
+    size: letter;
+  }
+}
