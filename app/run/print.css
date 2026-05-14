@@ -1,47 +1,105 @@
 @media print {
-  body {
-    background: white !important;
-    color: black !important;
-  }
-
+  /* Hide everything except the output */
   .no-print {
     display: none !important;
   }
 
+  /* Reset page to clean white */
+  body {
+    background: white !important;
+    color: black !important;
+    font-family: Arial, sans-serif !important;
+  }
+
+  /* Strip the dark theme container styles */
   .print-content {
     background: white !important;
     color: black !important;
-    padding: 24px !important;
-    font-family: Arial, sans-serif !important;
-    font-size: 11pt !important;
-    line-height: 1.5 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
   }
 
+  /* Force all text inside output to black */
+  .print-content * {
+    background: white !important;
+    color: black !important;
+    border-color: #333 !important;
+  }
+
+  /* Headings */
   .print-content h1,
   .print-content h2,
   .print-content h3,
   .print-content h4 {
     color: black !important;
-    page-break-after: avoid !important;
+    page-break-after: avoid;
+    margin-top: 1.2em;
+    margin-bottom: 0.5em;
   }
 
-  .print-content table {
-    border-collapse: collapse !important;
-    page-break-inside: avoid !important;
-  }
+  .print-content h1 { font-size: 20pt; }
+  .print-content h2 { font-size: 16pt; }
+  .print-content h3 { font-size: 14pt; }
+  .print-content h4 { font-size: 12pt; }
 
-  .print-content table, .print-content th, .print-content td {
-    border: 1px solid #333 !important;
+  /* Body text */
+  .print-content p,
+  .print-content li {
+    font-size: 11pt;
+    line-height: 1.5;
     color: black !important;
   }
 
+  /* Tables */
+  .print-content table {
+    border-collapse: collapse;
+    width: 100%;
+    page-break-inside: avoid;
+    margin: 1em 0;
+  }
+
+  .print-content table,
+  .print-content th,
+  .print-content td {
+    border: 1px solid #333 !important;
+    color: black !important;
+    padding: 6px 10px;
+  }
+
+  .print-content th {
+    background: #eee !important;
+    font-weight: bold;
+  }
+
+  /* Code and citations */
   .print-content code,
   .print-content .citation {
     background: #f0f0f0 !important;
     color: #333 !important;
     border: 1px solid #ccc !important;
+    padding: 2px 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 10pt;
   }
 
+  /* Lists */
+  .print-content ul,
+  .print-content ol {
+    margin: 0.5em 0;
+    padding-left: 2em;
+  }
+
+  /* Avoid breaking flags/sections across pages */
+  .print-content blockquote,
+  .print-content pre {
+    page-break-inside: avoid;
+  }
+
+  /* Page setup */
   @page {
     margin: 0.5in;
     size: letter;
