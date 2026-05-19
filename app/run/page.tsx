@@ -32,7 +32,7 @@ function formatSize(bytes: number): string {
 }
 
 function modelColor(model: string): string {
-  return model === 'sonnet' ? '#f59e0b' : '#94a3b8'
+  return model === 'sonnet' ? '#f59e0b' : '#7F9DB1'
 }
 
 export default function RunPage() {
@@ -245,7 +245,7 @@ export default function RunPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#061E45', color: '#f0f6ff', fontFamily: 'Arial, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#000000', color: '#f0f6ff', fontFamily: 'Arial, sans-serif' }}>
 
       {blockedFile && (
         <LargeFileModal
@@ -259,14 +259,13 @@ export default function RunPage() {
 
       {/* ── HEADER ── */}
       <div className="no-print" style={{
-        background: 'linear-gradient(180deg,#061E45 0%,#003B66 100%)',
-        borderBottom: '2px solid rgba(61,78,172,0.6)',
+        background: 'linear-gradient(180deg, #000000 0%, #061E45 100%)',
+        borderBottom: '2px solid #3D4EAC',
         padding: '14px 32px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between'
       }}>
-        {/* Logo + wordmark */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <img
             src="/grind-recon-logo.png"
@@ -280,7 +279,7 @@ export default function RunPage() {
               letterSpacing: 5,
               textTransform: 'uppercase',
               lineHeight: 1.1,
-              color: '#C3E3EB',
+              color: '#ffffff',
             }}>
               GRIND <span style={{ color: '#3D4EAC' }}>RECON</span>
             </div>
@@ -296,7 +295,6 @@ export default function RunPage() {
           </div>
         </div>
 
-        {/* Right side: status + dashboard link */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{
             background: 'rgba(34,197,94,0.12)',
@@ -328,13 +326,13 @@ export default function RunPage() {
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           style={{
-            border: `2px dashed ${dragOver ? '#3D4EAC' : 'rgba(61,78,172,0.4)'}`,
+            border: `2px dashed ${dragOver ? '#3D4EAC' : '#003B66'}`,
             borderRadius: 6,
             padding: '28px 24px',
             textAlign: 'center',
             cursor: 'pointer',
             marginBottom: 20,
-            background: dragOver ? 'rgba(61,78,172,0.08)' : 'rgba(0,59,102,0.15)',
+            background: dragOver ? 'rgba(61,78,172,0.1)' : '#0a0a0a',
             transition: 'all 0.15s',
           }}
         >
@@ -347,25 +345,23 @@ export default function RunPage() {
             onChange={e => e.target.files && handleFiles(e.target.files)}
           />
           <div style={{ fontSize: '2rem', marginBottom: 8 }}>📁</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 800, fontSize: '0.9rem', letterSpacing: 3, textTransform: 'uppercase', color: '#C3E3EB', marginBottom: 4 }}>
-              DROP PROJECT DOCUMENTS HERE
-            </div>
-            <div style={{ fontSize: '0.72rem', color: '#7F9DB1' }}>
-              Up to 32 MB per file · 40 MB total per analysis · PDF, images, or text
-            </div>
-            {pendingFiles.length > 0 && (
-              <div style={{ fontSize: '0.7rem', color: totalSize > MAX_TOTAL_SIZE * 0.85 ? '#fbbf24' : '#64748b', marginTop: 4, fontWeight: 600 }}>
-                Total: {totalSizeMB.toFixed(1)} MB / 40 MB
-              </div>
-            )}
+          <div style={{ fontWeight: 800, fontSize: '0.9rem', letterSpacing: 3, textTransform: 'uppercase', color: '#C3E3EB', marginBottom: 4 }}>
+            DROP PROJECT DOCUMENTS HERE
           </div>
+          <div style={{ fontSize: '0.72rem', color: '#7F9DB1' }}>
+            Up to 32 MB per file · 40 MB total per analysis · PDF, images, or text
+          </div>
+          {pendingFiles.length > 0 && (
+            <div style={{ fontSize: '0.7rem', color: totalSize > MAX_TOTAL_SIZE * 0.85 ? '#fbbf24' : '#36454F', marginTop: 4, fontWeight: 600 }}>
+              Total: {totalSizeMB.toFixed(1)} MB / 40 MB
+            </div>
+          )}
           {pendingFiles.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 12 }} onClick={e => e.stopPropagation()}>
               {pendingFiles.map((f, i) => (
                 <div key={i} style={{
-                  background: f.error ? 'rgba(239,68,68,0.12)' : f.uploading ? 'rgba(245,158,11,0.12)' : 'rgba(61,78,172,0.15)',
-                  border: `1px solid ${f.error ? 'rgba(239,68,68,0.3)' : f.uploading ? 'rgba(245,158,11,0.3)' : 'rgba(61,78,172,0.4)'}`,
+                  background: f.error ? 'rgba(239,68,68,0.12)' : f.uploading ? 'rgba(245,158,11,0.12)' : 'rgba(0,59,102,0.4)',
+                  border: `1px solid ${f.error ? 'rgba(239,68,68,0.4)' : f.uploading ? 'rgba(245,158,11,0.4)' : '#003B66'}`,
                   color: f.error ? '#fca5a5' : f.uploading ? '#fbbf24' : '#C3E3EB',
                   fontSize: '0.7rem', padding: '4px 10px', borderRadius: 2, display: 'flex', alignItems: 'center', gap: 6
                 }}>
@@ -386,12 +382,12 @@ export default function RunPage() {
             value={projectName}
             onChange={e => setProjectName(e.target.value)}
             placeholder="e.g. Dolson Self Storage — Phase 2"
-            style={{ flex: 1, background: 'rgba(61,78,172,0.08)', border: '1px solid rgba(61,78,172,0.3)', borderRadius: 4, padding: '10px 14px', color: '#f0f6ff', fontSize: '0.9rem', outline: 'none', fontFamily: 'Arial, sans-serif' }}
+            style={{ flex: 1, background: '#0a0a0a', border: '1px solid #003B66', borderRadius: 4, padding: '10px 14px', color: '#f0f6ff', fontSize: '0.9rem', outline: 'none', fontFamily: 'Arial, sans-serif' }}
           />
         </div>
 
         {/* Category tabs */}
-        <div className="no-print" style={{ display: 'flex', borderBottom: '1px solid rgba(61,78,172,0.35)', marginBottom: 20, overflowX: 'auto' }}>
+        <div className="no-print" style={{ display: 'flex', borderBottom: '1px solid #003B66', marginBottom: 20, overflowX: 'auto' }}>
           {CATEGORIES.map(cat => (
             <button
               key={cat.id}
@@ -405,7 +401,7 @@ export default function RunPage() {
                 textTransform: 'uppercase',
                 color: activeCatId === cat.id ? '#C3E3EB' : '#7F9DB1',
                 borderBottom: `3px solid ${activeCatId === cat.id ? '#3D4EAC' : 'transparent'}`,
-                background: activeCatId === cat.id ? 'rgba(61,78,172,0.1)' : 'none',
+                background: activeCatId === cat.id ? 'rgba(61,78,172,0.12)' : 'none',
                 border: 'none',
                 borderBottomWidth: 3,
                 borderBottomStyle: 'solid',
@@ -418,8 +414,9 @@ export default function RunPage() {
             >
               {cat.icon} {cat.name}
               <span style={{
-                background: activeCatId === cat.id ? 'rgba(61,78,172,0.35)' : 'rgba(0,59,102,0.4)',
+                background: activeCatId === cat.id ? '#061E45' : '#0a0a0a',
                 color: activeCatId === cat.id ? '#C3E3EB' : '#7F9DB1',
+                border: `1px solid ${activeCatId === cat.id ? '#3D4EAC' : '#003B66'}`,
                 fontSize: '0.6rem',
                 padding: '1px 5px',
                 borderRadius: 2
@@ -432,7 +429,7 @@ export default function RunPage() {
 
         {/* Category heading */}
         <div className="no-print" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 900, fontSize: '1.2rem', letterSpacing: 4, textTransform: 'uppercase', color: '#f0f6ff' }}>{activeCat.icon} {activeCat.name}</div>
+          <div style={{ fontWeight: 900, fontSize: '1.2rem', letterSpacing: 4, textTransform: 'uppercase', color: '#ffffff' }}>{activeCat.icon} {activeCat.name}</div>
           <div style={{ fontSize: '0.78rem', color: '#7F9DB1', marginTop: 4 }}>{activeCat.desc}</div>
         </div>
 
@@ -443,8 +440,8 @@ export default function RunPage() {
               key={tool.id}
               onClick={() => selectTool(tool)}
               style={{
-                background: selectedTool?.id === tool.id ? 'rgba(61,78,172,0.18)' : 'rgba(0,59,102,0.2)',
-                border: `1px solid ${selectedTool?.id === tool.id ? '#3D4EAC' : 'rgba(61,78,172,0.2)'}`,
+                background: selectedTool?.id === tool.id ? '#061E45' : '#0d0d0d',
+                border: `1px solid ${selectedTool?.id === tool.id ? '#3D4EAC' : '#003B66'}`,
                 borderRadius: 4,
                 padding: 18,
                 cursor: 'pointer',
@@ -459,7 +456,7 @@ export default function RunPage() {
                   letterSpacing: 1,
                   textTransform: 'uppercase',
                   color: modelColor(tool.model),
-                  background: tool.model === 'sonnet' ? 'rgba(245,158,11,0.1)' : 'rgba(148,163,184,0.1)',
+                  background: tool.model === 'sonnet' ? 'rgba(245,158,11,0.1)' : 'rgba(127,157,177,0.1)',
                   padding: '2px 5px',
                   borderRadius: 2,
                   flexShrink: 0,
@@ -475,7 +472,7 @@ export default function RunPage() {
 
         {/* Selected tool panel */}
         {selectedTool && (status === 'idle' || status === 'error') && (
-          <div className="no-print" style={{ background: 'rgba(0,59,102,0.25)', border: '1px solid rgba(61,78,172,0.3)', borderRadius: 6, padding: 20, marginBottom: 24 }}>
+          <div className="no-print" style={{ background: '#0d0d0d', border: '1px solid #003B66', borderRadius: 6, padding: 20, marginBottom: 24 }}>
             <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#7F9DB1', marginBottom: 4 }}>SELECTED TOOL</div>
             <div style={{ fontWeight: 800, fontSize: '1rem', color: '#C3E3EB', marginBottom: 14 }}>{selectedTool.name}</div>
 
@@ -485,7 +482,7 @@ export default function RunPage() {
               onChange={e => setContext(e.target.value)}
               placeholder="Add any specific questions, project details, or focus areas..."
               rows={3}
-              style={{ width: '100%', background: 'rgba(61,78,172,0.08)', border: '1px solid rgba(61,78,172,0.25)', borderRadius: 4, padding: '10px 12px', color: '#f0f6ff', fontSize: '0.85rem', resize: 'vertical', outline: 'none', fontFamily: 'Arial, sans-serif', marginBottom: 14, boxSizing: 'border-box' }}
+              style={{ width: '100%', background: '#000000', border: '1px solid #003B66', borderRadius: 4, padding: '10px 12px', color: '#f0f6ff', fontSize: '0.85rem', resize: 'vertical', outline: 'none', fontFamily: 'Arial, sans-serif', marginBottom: 14, boxSizing: 'border-box' }}
             />
 
             {error && (
@@ -496,12 +493,12 @@ export default function RunPage() {
 
             <button
               onClick={handleRun}
-              style={{ width: '100%', background: '#3D4EAC', border: 'none', color: '#fff', fontWeight: 900, fontSize: '0.85rem', letterSpacing: 3, textTransform: 'uppercase', padding: '14px', borderRadius: 4, cursor: 'pointer', fontFamily: 'Arial, sans-serif' }}
+              style={{ width: '100%', background: '#3D4EAC', border: 'none', color: '#ffffff', fontWeight: 900, fontSize: '0.85rem', letterSpacing: 3, textTransform: 'uppercase', padding: '14px', borderRadius: 4, cursor: 'pointer', fontFamily: 'Arial, sans-serif' }}
             >
               ▶ RUN THIS TOOL
             </button>
             {pendingFiles.length === 0 && (
-              <div style={{ fontSize: '0.7rem', color: '#7F9DB1', textAlign: 'center', marginTop: 8 }}>
+              <div style={{ fontSize: '0.7rem', color: '#36454F', textAlign: 'center', marginTop: 8 }}>
                 No documents uploaded — will generate a general framework
               </div>
             )}
@@ -510,8 +507,8 @@ export default function RunPage() {
 
         {/* Running spinner */}
         {status === 'running' && (
-          <div className="no-print" style={{ background: 'rgba(0,59,102,0.25)', border: '1px solid rgba(61,78,172,0.3)', borderRadius: 6, padding: 40, textAlign: 'center', marginBottom: 24 }}>
-            <div style={{ width: 48, height: 48, border: '4px solid rgba(61,78,172,0.25)', borderTop: '4px solid #3D4EAC', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
+          <div className="no-print" style={{ background: '#0d0d0d', border: '1px solid #003B66', borderRadius: 6, padding: 40, textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ width: 48, height: 48, border: '4px solid #061E45', borderTop: '4px solid #3D4EAC', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
             <div style={{ color: '#C3E3EB', fontSize: '0.85rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>● ANALYZING DOCUMENTS</div>
             <div style={{ color: '#7F9DB1', fontSize: '0.78rem', marginTop: 6 }}>This may take 30–120 seconds for large files</div>
             <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
@@ -520,28 +517,28 @@ export default function RunPage() {
 
         {/* Output */}
         {status === 'complete' && output && (
-          <div ref={outputRef} className="print-content" style={{ background: 'rgba(0,59,102,0.2)', border: '1px solid rgba(61,78,172,0.3)', borderRadius: 6, padding: '32px 40px', marginBottom: 16, fontFamily: 'Arial, sans-serif' }}>
+          <div ref={outputRef} className="print-content" style={{ background: '#0d0d0d', border: '1px solid #003B66', borderRadius: 6, padding: '32px 40px', marginBottom: 16, fontFamily: 'Arial, sans-serif' }}>
             <div className="markdown-body" style={{ color: '#e2e8f0', fontSize: 15, lineHeight: 1.7 }}>
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  h1: ({ node, ...props }) => <h1 style={{ fontWeight: 900, fontSize: 24, color: '#f0f6ff', marginTop: '1.5em', marginBottom: '0.5em', letterSpacing: 1 }} {...props} />,
-                  h2: ({ node, ...props }) => <h2 style={{ fontWeight: 800, fontSize: 20, color: '#f0f6ff', marginTop: '1.4em', marginBottom: '0.5em' }} {...props} />,
+                  h1: ({ node, ...props }) => <h1 style={{ fontWeight: 900, fontSize: 24, color: '#ffffff', marginTop: '1.5em', marginBottom: '0.5em', letterSpacing: 1 }} {...props} />,
+                  h2: ({ node, ...props }) => <h2 style={{ fontWeight: 800, fontSize: 20, color: '#ffffff', marginTop: '1.4em', marginBottom: '0.5em' }} {...props} />,
                   h3: ({ node, ...props }) => <h3 style={{ fontWeight: 800, fontSize: 17, color: '#C3E3EB', marginTop: '1.3em', marginBottom: '0.4em' }} {...props} />,
-                  h4: ({ node, ...props }) => <h4 style={{ fontWeight: 700, fontSize: 15, color: '#f0f6ff', marginTop: '1.2em', marginBottom: '0.4em' }} {...props} />,
+                  h4: ({ node, ...props }) => <h4 style={{ fontWeight: 700, fontSize: 15, color: '#C3E3EB', marginTop: '1.2em', marginBottom: '0.4em' }} {...props} />,
                   p: ({ node, ...props }) => <p style={{ fontSize: 15, lineHeight: 1.7, marginTop: '0.5em', marginBottom: '0.8em' }} {...props} />,
                   ul: ({ node, ...props }) => <ul style={{ paddingLeft: '1.6em', marginTop: '0.4em', marginBottom: '0.8em' }} {...props} />,
                   ol: ({ node, ...props }) => <ol style={{ paddingLeft: '1.6em', marginTop: '0.4em', marginBottom: '0.8em' }} {...props} />,
                   li: ({ node, ...props }) => <li style={{ marginBottom: '0.3em', lineHeight: 1.6 }} {...props} />,
-                  strong: ({ node, ...props }) => <strong style={{ color: '#f0f6ff', fontWeight: 800 }} {...props} />,
-                  em: ({ node, ...props }) => <em style={{ color: '#cbd5e1' }} {...props} />,
-                  code: ({ node, ...props }) => <code className="citation" style={{ background: 'rgba(61,78,172,0.15)', color: '#C3E3EB', padding: '1px 6px', borderRadius: 3, fontSize: '0.88em', fontFamily: 'Consolas, Monaco, monospace' }} {...props} />,
-                  pre: ({ node, ...props }) => <pre style={{ background: 'rgba(6,30,69,0.6)', border: '1px solid rgba(61,78,172,0.2)', borderRadius: 4, padding: 14, overflowX: 'auto', marginTop: '0.6em', marginBottom: '0.8em', fontSize: 14, lineHeight: 1.5 }} {...props} />,
+                  strong: ({ node, ...props }) => <strong style={{ color: '#ffffff', fontWeight: 800 }} {...props} />,
+                  em: ({ node, ...props }) => <em style={{ color: '#7F9DB1' }} {...props} />,
+                  code: ({ node, ...props }) => <code className="citation" style={{ background: '#061E45', color: '#C3E3EB', padding: '1px 6px', borderRadius: 3, fontSize: '0.88em', fontFamily: 'Consolas, Monaco, monospace' }} {...props} />,
+                  pre: ({ node, ...props }) => <pre style={{ background: '#000000', border: '1px solid #003B66', borderRadius: 4, padding: 14, overflowX: 'auto', marginTop: '0.6em', marginBottom: '0.8em', fontSize: 14, lineHeight: 1.5 }} {...props} />,
                   table: ({ node, ...props }) => <div style={{ overflowX: 'auto', marginTop: '0.8em', marginBottom: '1em' }}><table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 14 }} {...props} /></div>,
-                  th: ({ node, ...props }) => <th style={{ background: 'rgba(61,78,172,0.2)', border: '1px solid rgba(61,78,172,0.3)', padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#f0f6ff' }} {...props} />,
-                  td: ({ node, ...props }) => <td style={{ border: '1px solid rgba(61,78,172,0.2)', padding: '8px 12px', verticalAlign: 'top' }} {...props} />,
-                  blockquote: ({ node, ...props }) => <blockquote style={{ borderLeft: '3px solid #3D4EAC', paddingLeft: 14, margin: '0.8em 0', color: '#cbd5e1', fontStyle: 'italic' }} {...props} />,
-                  hr: ({ node, ...props }) => <hr style={{ border: 'none', borderTop: '1px solid rgba(61,78,172,0.25)', margin: '1.4em 0' }} {...props} />,
+                  th: ({ node, ...props }) => <th style={{ background: '#061E45', border: '1px solid #003B66', padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#C3E3EB' }} {...props} />,
+                  td: ({ node, ...props }) => <td style={{ border: '1px solid #003B66', padding: '8px 12px', verticalAlign: 'top' }} {...props} />,
+                  blockquote: ({ node, ...props }) => <blockquote style={{ borderLeft: '3px solid #3D4EAC', paddingLeft: 14, margin: '0.8em 0', color: '#7F9DB1', fontStyle: 'italic' }} {...props} />,
+                  hr: ({ node, ...props }) => <hr style={{ border: 'none', borderTop: '1px solid #003B66', margin: '1.4em 0' }} {...props} />,
                   a: ({ node, ...props }) => <a style={{ color: '#C3E3EB', textDecoration: 'underline' }} target="_blank" rel="noopener noreferrer" {...props} />,
                 }}
               >
@@ -555,21 +552,21 @@ export default function RunPage() {
         {status === 'complete' && output && (
           <div className="no-print" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
             {tokensUsed && (
-              <span style={{ fontSize: '0.7rem', color: '#7F9DB1', marginRight: 'auto' }}>
+              <span style={{ fontSize: '0.7rem', color: '#36454F', marginRight: 'auto' }}>
                 {tokensUsed.toLocaleString()} tokens used
               </span>
             )}
-            <button onClick={handleCopy} style={{ background: copyConfirm ? 'rgba(34,197,94,0.18)' : 'rgba(61,78,172,0.15)', border: `1px solid ${copyConfirm ? 'rgba(34,197,94,0.4)' : 'rgba(61,78,172,0.35)'}`, color: copyConfirm ? '#4ade80' : '#C3E3EB', fontSize: '0.7rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: 'Arial, sans-serif' }}>
+            <button onClick={handleCopy} style={{ background: copyConfirm ? 'rgba(34,197,94,0.18)' : '#061E45', border: `1px solid ${copyConfirm ? 'rgba(34,197,94,0.5)' : '#003B66'}`, color: copyConfirm ? '#4ade80' : '#C3E3EB', fontSize: '0.7rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: 'Arial, sans-serif' }}>
               {copyConfirm ? '✓ COPIED' : 'COPY'}
             </button>
-            <button onClick={handleExport} style={{ background: 'rgba(61,78,172,0.15)', border: '1px solid rgba(61,78,172,0.35)', color: '#C3E3EB', fontSize: '0.7rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: 'Arial, sans-serif' }}>EXPORT TXT</button>
-            <button onClick={handlePrint} style={{ background: 'rgba(61,78,172,0.15)', border: '1px solid rgba(61,78,172,0.35)', color: '#C3E3EB', fontSize: '0.7rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: 'Arial, sans-serif' }}>🖨 PRINT</button>
-            <button onClick={resetRun} style={{ background: 'rgba(61,78,172,0.15)', border: '1px solid rgba(61,78,172,0.35)', color: '#C3E3EB', fontSize: '0.7rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: 'Arial, sans-serif' }}>NEW RUN</button>
+            <button onClick={handleExport} style={{ background: '#061E45', border: '1px solid #003B66', color: '#C3E3EB', fontSize: '0.7rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: 'Arial, sans-serif' }}>EXPORT TXT</button>
+            <button onClick={handlePrint} style={{ background: '#061E45', border: '1px solid #003B66', color: '#C3E3EB', fontSize: '0.7rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: 'Arial, sans-serif' }}>🖨 PRINT</button>
+            <button onClick={resetRun} style={{ background: '#061E45', border: '1px solid #003B66', color: '#C3E3EB', fontSize: '0.7rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer', fontFamily: 'Arial, sans-serif' }}>NEW RUN</button>
           </div>
         )}
 
         {status === 'complete' && !output && (
-          <div className="no-print" style={{ color: '#7F9DB1', fontSize: '0.85rem', textAlign: 'center', padding: 24, background: 'rgba(0,59,102,0.2)', border: '1px solid rgba(61,78,172,0.2)', borderRadius: 6 }}>
+          <div className="no-print" style={{ color: '#7F9DB1', fontSize: '0.85rem', textAlign: 'center', padding: 24, background: '#0d0d0d', border: '1px solid #003B66', borderRadius: 6 }}>
             Run completed but no output was returned. Try again.
           </div>
         )}
@@ -630,8 +627,8 @@ function LargeFileModal({ fileName, fileSizeMB, reason, onClose, supabase }: {
     : <>Combined upload is {fileSizeMB.toFixed(1)} MB. RECON handles up to 40 MB total per analysis.<br /><br />Remove a file or run separately. Large-plan-set support is coming soon.</>
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-      <div style={{ background: '#003B66', border: '1px solid rgba(61,78,172,0.4)', borderRadius: 6, padding: 28, maxWidth: 520, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+      <div style={{ background: '#0d0d0d', border: '1px solid #003B66', borderRadius: 6, padding: 28, maxWidth: 520, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
           <div style={{ fontWeight: 900, fontSize: '1.1rem', letterSpacing: 3, textTransform: 'uppercase', color: '#C3E3EB' }}>
             📋 {title}
@@ -639,7 +636,7 @@ function LargeFileModal({ fileName, fileSizeMB, reason, onClose, supabase }: {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7F9DB1', fontSize: '1.4rem', cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
         </div>
 
-        <div style={{ color: '#cbd5e1', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: 18 }}>
+        <div style={{ color: '#7F9DB1', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: 18 }}>
           {message}
         </div>
 
@@ -654,7 +651,7 @@ function LargeFileModal({ fileName, fileSizeMB, reason, onClose, supabase }: {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="your@email.com"
-                style={{ flex: 1, background: 'rgba(61,78,172,0.1)', border: '1px solid rgba(61,78,172,0.35)', borderRadius: 4, padding: '10px 12px', color: '#f0f6ff', fontSize: '0.85rem', outline: 'none' }}
+                style={{ flex: 1, background: '#000000', border: '1px solid #003B66', borderRadius: 4, padding: '10px 12px', color: '#f0f6ff', fontSize: '0.85rem', outline: 'none' }}
               />
               <button
                 onClick={handleSubmit}
