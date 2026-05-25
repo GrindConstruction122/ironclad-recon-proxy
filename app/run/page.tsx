@@ -52,6 +52,14 @@ export default function RunPage() {
   const outputRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+  useEffect(() => {
+    async function checkSub() {
+      const res = await fetch('/api/check-subscription')
+      const data = await res.json()
+      if (!data.active) router.push('/pricing')
+    }
+    checkSub()
+  }, [])
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

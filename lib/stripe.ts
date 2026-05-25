@@ -7,7 +7,7 @@ apiVersion: '2026-04-22.dahlia',
 export const PLANS = {
   breach: {
     name: 'IRONCLAD Recon Breach',
-    tokenCap: 100000,
+    tokenCap: 200000,
     priceId: process.env.STRIPE_BREACH_PRICE_ID,
   },
   tactical: {
