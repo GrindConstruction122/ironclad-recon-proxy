@@ -39,6 +39,43 @@ export async function POST(request: NextRequest) {
   try {
     switch (event.type) {
 
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session
+        const customerId = session.customer as string
+        const subscriptionId = session.subscription as string
+        if (!customerId || !subscriptionId) break
+
+        const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer
+        const email = customer.email
+        if (!email) break
+
+        const { data: authUsers } = await supabase.auth.admin.listUsers()
+        const user = authUsers?.users?.find(u => u.email === email)
+        if (!user) break
+
+        const stripeSub = await stripe.subscriptions.retrieve(subscriptionId)
+        const planId = getPlanFromPriceId(stripeSub.items.data[0].price.id)
+        if (!planId) break
+
+        const periodStart = (stripeSub as any).current_period_start
+        const periodEnd = (stripeSub as any).current_period_end
+
+        await supabase.from('subscriptions').upsert({
+          user_id:                user.id,
+          stripe_customer_id:     customerId,
+          stripe_subscription_id: subscriptionId,
+          status:                 'active',
+          plan:                   planId,
+          token_limit:            PLAN_TOKEN_LIMITS[planId] ?? 0,
+          tokens_used:            0,
+          tokens_banked:          0,
+          current_period_start:   periodStart ? new Date(periodStart * 1000).toISOString() : null,
+          current_period_end:     periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+          updated_at:             new Date().toISOString(),
+        }, { onConflict: 'user_id' })
+        break
+      }
+
       case 'customer.subscription.created': {
         const sub = event.data.object as Stripe.Subscription
         const planId = sub.metadata.plan_id || getPlanFromPriceId(sub.items.data[0].price.id)
