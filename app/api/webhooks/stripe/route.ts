@@ -49,9 +49,16 @@ export async function POST(request: NextRequest) {
         const email = customer.email
         if (!email) break
 
-        const { data: authUsers } = await supabase.auth.admin.listUsers()
-        const user = authUsers?.users?.find(u => u.email === email)
-        if (!user) break
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', email)
+          .single()
+
+        if (userError || !userData) {
+          console.error('User not found for email:', email, userError)
+          break
+        }
 
         const stripeSub = await stripe.subscriptions.retrieve(subscriptionId)
         const planId = getPlanFromPriceId(stripeSub.items.data[0].price.id)
@@ -61,7 +68,7 @@ export async function POST(request: NextRequest) {
         const periodEnd = (stripeSub as any).current_period_end
 
         await supabase.from('subscriptions').upsert({
-          user_id:                user.id,
+          user_id:                userData.id,
           stripe_customer_id:     customerId,
           stripe_subscription_id: subscriptionId,
           status:                 'active',
