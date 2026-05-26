@@ -97,31 +97,31 @@ export default function PricingPage() {
     <div className="min-h-screen bg-[#111827] text-white">
       <div className="border-b border-white/10 px-6 py-5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#1E40AF] rounded flex items-center justify-center">
-            <span className="text-xs font-black tracking-wider">IC</span>
+          <div className="w-8 h-8 bg-[#3D4EAC] rounded flex items-center justify-center">
+            <span className="text-xs font-black tracking-wider">GR</span>
           </div>
-          <span className="font-bold tracking-widest text-sm uppercase text-white/80">IRONCLAD RECON</span>
+          <span className="font-bold tracking-widest text-sm uppercase text-white/80">GRIND RECON</span>
         </div>
         <a href="/login" className="text-sm text-white/50 hover:text-white transition-colors">Already have an account →</a>
       </div>
 
       <div className="max-w-5xl mx-auto px-6 pt-20 pb-16 text-center">
-        <p className="text-[#1E40AF] text-xs font-bold tracking-[0.25em] uppercase mb-4">GRIND Construction Services LLC</p>
+        <p className="text-[#3D4EAC] text-xs font-bold tracking-[0.25em] uppercase mb-4">GRIND Construction Services LLC</p>
         <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-4 leading-tight">
           Know What You're Walking Into.<br />
-          <span className="text-[#1E40AF]">Before You Bid It.</span>
+          <span className="text-[#3D4EAC]">Before You Bid It.</span>
         </h1>
         <p className="text-white/50 text-lg max-w-xl mx-auto">
-          IRONCLAD RECON catches missed scope, unsupported quantities, and bid errors before they cost you money.
+          GRIND RECON catches missed scope, unsupported quantities, and bid errors before they cost you money.
         </p>
       </div>
 
       <div className="max-w-5xl mx-auto px-6 pb-16 grid grid-cols-1 md:grid-cols-3 gap-6">
         {plans.map((plan) => (
-          <div key={plan.id} className={`relative rounded-xl border p-8 flex flex-col ${plan.highlight ? 'border-[#1E40AF] bg-[#1E40AF]/10' : 'border-white/10 bg-white/5'}`}>
+          <div key={plan.id} className={`relative rounded-xl border p-8 flex flex-col ${plan.highlight ? 'border-[#3D4EAC] bg-[#3D4EAC]/10' : 'border-white/10 bg-white/5'}`}>
             {plan.highlight && (
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <span className="bg-[#1E40AF] text-white text-xs font-bold px-3 py-1 rounded-full tracking-widest uppercase">Most Popular</span>
+                <span className="bg-[#3D4EAC] text-white text-xs font-bold px-3 py-1 rounded-full tracking-widest uppercase">Most Popular</span>
               </div>
             )}
             <div className="mb-6">
@@ -133,12 +133,12 @@ export default function PricingPage() {
               <span className="text-white/40 text-sm ml-1">/month</span>
             </div>
             <div className="mb-8">
-              <span className="text-xs font-bold text-[#1E40AF] tracking-widest uppercase">{plan.tokens}</span>
+              <span className="text-xs font-bold text-[#3D4EAC] tracking-widest uppercase">{plan.tokens}</span>
             </div>
             <ul className="space-y-3 mb-10 flex-1">
               {plan.features.map((feature) => (
                 <li key={feature} className="flex items-start gap-2 text-sm">
-                  <span className="text-[#1E40AF] mt-0.5 flex-shrink-0">✓</span>
+                  <span className="text-[#3D4EAC] mt-0.5 flex-shrink-0">✓</span>
                   <span className="text-white/70">{feature}</span>
                 </li>
               ))}
@@ -146,7 +146,7 @@ export default function PricingPage() {
             <button
               onClick={() => handleSubscribe(plan.id, plan.priceId)}
               disabled={loading !== null}
-              className={`w-full py-3 rounded-lg font-bold text-sm tracking-wide transition-all ${plan.highlight ? 'bg-[#1E40AF] hover:bg-[#1d3aaa] text-white' : 'bg-white/10 hover:bg-white/20 text-white'} disabled:opacity-40 disabled:cursor-not-allowed`}
+              className={`w-full py-3 rounded-lg font-bold text-sm tracking-wide transition-all ${plan.highlight ? 'bg-[#3D4EAC] hover:bg-[#3344aa] text-white' : 'bg-white/10 hover:bg-white/20 text-white'} disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               {loading === plan.id ? 'Redirecting...' : plan.cta}
             </button>
@@ -162,7 +162,7 @@ export default function PricingPage() {
           </div>
           <div className="flex-shrink-0 text-right">
             <div><span className="text-2xl font-black">$15</span><span className="text-white/40 text-sm ml-1">one-time</span></div>
-            <div className="text-xs text-[#1E40AF] font-bold tracking-widest mt-1">100,000 TOKENS</div>
+            <div className="text-xs text-[#3D4EAC] font-bold tracking-widest mt-1">100,000 TOKENS</div>
           </div>
         </div>
       </div>
@@ -172,7 +172,7 @@ export default function PricingPage() {
       )}
 
       <div className="border-t border-white/10 py-8 text-center text-white/30 text-xs tracking-wider">
-        IRONCLAD RECON · GRIND Construction Services LLC · Newburgh, NY
+        GRIND RECON · GRIND Construction Services LLC · Newburgh, NY
       </div>
     </div>
   )
