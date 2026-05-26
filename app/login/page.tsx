@@ -1,97 +1,106 @@
 'use client'
 import { useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [password, setPassword] = useState('')
+  const [isSignUp, setIsSignUp] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  async function handleLogin() {
-    if (!email.trim()) { setError('Enter your email address.'); return }
+  async function handleSubmit() {
     setLoading(true)
     setError(null)
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-    })
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-    } else {
-      setSent(true)
+    try {
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({ email, password })
+        if (error) throw error
+        setError('Account created — you can now sign in.')
+        setIsSignUp(false)
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) throw error
+        router.push('/run')
+      }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#061E45] text-white flex items-center justify-center px-6">
-      <div className="w-full max-w-sm">
-
-        {/* Logo — centered, big */}
-        <div className="flex flex-col items-center mb-10">
-          <img
-            src="/grind-recon-logo.png"
-            alt="GRIND RECON"
-            style={{ width: 200, height: 200, objectFit: 'contain', marginBottom: '1rem' }}
-          />
-          <p style={{
-            color: '#7F9DB1',
-            fontSize: 11,
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-            textAlign: 'center',
-            margin: 0,
-          }}>
-            // KNOW WHAT YOU'RE WALKING INTO — BEFORE YOU BID IT //
-          </p>
+    <div style={{ minHeight: '100vh', background: '#000814', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Arial, sans-serif' }}>
+      <div style={{ width: '100%', maxWidth: 420, padding: '0 24px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <img src="/grind-recon-logo.png" alt="GRIND RECON" style={{ width: 80, height: 80, objectFit: 'contain', marginBottom: 16 }} />
+          <div style={{ fontWeight: 900, fontSize: '1.6rem', letterSpacing: 5, textTransform: 'uppercase', color: '#ffffff' }}>
+            GRIND <span style={{ color: '#3D4EAC' }}>RECON</span>
+          </div>
+          <div style={{ fontSize: '0.6rem', letterSpacing: 3, textTransform: 'uppercase', color: '#7F9DB1', marginTop: 6 }}>
+            // KNOW WHAT YOU'RE WALKING INTO //
+          </div>
         </div>
 
-        {sent ? (
-          <div className="text-center">
-            <p className="text-2xl font-black mb-3">Check your email</p>
-            <p className="text-white/50 text-sm">
-              We sent a login link to <span className="text-white">{email}</span>.
-              Click it to sign in.
-            </p>
+        <div style={{ background: '#0d0d0d', border: '1px solid #003B66', borderRadius: 6, padding: 32 }}>
+          <div style={{ fontWeight: 800, fontSize: '1rem', letterSpacing: 3, textTransform: 'uppercase', color: '#C3E3EB', marginBottom: 24, textAlign: 'center' }}>
+            {isSignUp ? 'CREATE ACCOUNT' : 'SIGN IN'}
           </div>
-        ) : (
-          <div>
-            <h1 className="text-2xl font-black mb-2 text-center">Sign in</h1>
-            <p className="text-white/40 text-sm text-center mb-8">
-              Enter your email and we'll send you a link.
-            </p>
-            <div className="mb-4">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                placeholder="you@company.com"
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#3D4EAC] transition-colors"
-              />
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#7F9DB1', display: 'block', marginBottom: 6 }}>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="your@email.com"
+              style={{ width: '100%', background: '#000000', border: '1px solid #003B66', borderRadius: 4, padding: '12px 14px', color: '#f0f6ff', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#7F9DB1', display: 'block', marginBottom: 6 }}>Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              style={{ width: '100%', background: '#000000', border: '1px solid #003B66', borderRadius: 4, padding: '12px 14px', color: '#f0f6ff', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          {error && (
+            <div style={{ background: 'rgba(61,78,172,0.1)', border: '1px solid rgba(61,78,172,0.3)', color: '#C3E3EB', fontSize: '0.8rem', padding: '10px 14px', borderRadius: 4, marginBottom: 16 }}>
+              {error}
             </div>
-            {error && (
-              <p className="text-red-400 text-sm mb-4">{error}</p>
-            )}
+          )}
+
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            style={{ width: '100%', background: '#3D4EAC', border: 'none', color: '#ffffff', fontWeight: 900, fontSize: '0.85rem', letterSpacing: 3, textTransform: 'uppercase', padding: '14px', borderRadius: 4, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}
+          >
+            {loading ? '...' : isSignUp ? 'CREATE ACCOUNT' : 'SIGN IN'}
+          </button>
+
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
             <button
-              onClick={handleLogin}
-              disabled={loading}
-              className="w-full disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors"
-              style={{ background: '#3D4EAC' }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#003B66')}
-              onMouseLeave={e => (e.currentTarget.style.background = '#3D4EAC')}
+              onClick={() => { setIsSignUp(!isSignUp); setError(null) }}
+              style={{ background: 'none', border: 'none', color: '#7F9DB1', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline' }}
             >
-              {loading ? 'Sending...' : 'Send login link'}
+              {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
             </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )
