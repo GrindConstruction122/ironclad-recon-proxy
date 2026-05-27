@@ -49,9 +49,10 @@ export async function POST(request: NextRequest) {
         const email = customer.email
         if (!email) break
 
-        const { data: { user }, error: userError } = await supabase.auth.admin.getUserByEmail(email)
-        if (userError || !user) {
-          console.error('User not found for email:', email, userError)
+        const { data: { users } } = await supabase.auth.admin.listUsers()
+        const user = users?.find(u => u.email === email)
+        if (!user) {
+          console.error('User not found for email:', email)
           break
         }
 
