@@ -52,6 +52,7 @@ export default function RunPage() {
   const outputRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+
   useEffect(() => {
     async function checkSub() {
       const res = await fetch('/api/check-subscription')
@@ -269,57 +270,82 @@ export default function RunPage() {
       <div className="no-print" style={{
         background: 'linear-gradient(180deg, #000000 0%, #061E45 100%)',
         borderBottom: '2px solid #3D4EAC',
-        padding: '14px 32px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
+        padding: '12px 20px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <img
-            src="/grind-recon-logo.png"
-            alt="GRIND RECON"
-            style={{ width: 52, height: 52, objectFit: 'contain', flexShrink: 0 }}
-          />
-          <div>
-            <div style={{
-              fontWeight: 900,
-              fontSize: '1.35rem',
-              letterSpacing: 5,
-              textTransform: 'uppercase',
-              lineHeight: 1.1,
-              color: '#ffffff',
-            }}>
-              GRIND <span style={{ color: '#3D4EAC' }}>RECON</span>
-            </div>
-            <div style={{
-              fontSize: '0.58rem',
-              letterSpacing: 3,
-              textTransform: 'uppercase',
-              color: '#7F9DB1',
-              marginTop: 3,
-            }}>
-              // KNOW WHAT YOU'RE WALKING INTO — BEFORE YOU BID IT //
+        <style>{`
+          .recon-header-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          .recon-header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+          }
+          .recon-tagline { display: block; }
+          @media (max-width: 640px) {
+            .recon-header-inner {
+              flex-direction: column;
+              align-items: flex-start;
+              gap: 10px;
+            }
+            .recon-header-right {
+              width: 100%;
+              justify-content: space-between;
+            }
+            .recon-tagline { display: none; }
+          }
+        `}</style>
+        <div className="recon-header-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <img
+              src="/grind-recon-logo.png"
+              alt="GRIND RECON"
+              style={{ width: 48, height: 48, objectFit: 'contain', flexShrink: 0 }}
+            />
+            <div>
+              <div style={{
+                fontWeight: 900,
+                fontSize: '1.35rem',
+                letterSpacing: 5,
+                textTransform: 'uppercase',
+                lineHeight: 1.1,
+                color: '#ffffff',
+              }}>
+                GRIND <span style={{ color: '#3D4EAC' }}>RECON</span>
+              </div>
+              <div className="recon-tagline" style={{
+                fontSize: '0.58rem',
+                letterSpacing: 3,
+                textTransform: 'uppercase',
+                color: '#7F9DB1',
+                marginTop: 3,
+              }}>
+                // KNOW WHAT YOU'RE WALKING INTO — BEFORE YOU BID IT //
+              </div>
             </div>
           </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{
-            background: 'rgba(34,197,94,0.12)',
-            border: '1px solid rgba(34,197,94,0.35)',
-            color: '#4ade80',
-            fontSize: '0.6rem',
-            fontWeight: 700,
-            letterSpacing: 2,
-            padding: '4px 10px',
-            borderRadius: 2,
-            textTransform: 'uppercase'
-          }}>
-            ● SERVER ACTIVE
+          <div className="recon-header-right">
+            <div style={{
+              background: 'rgba(34,197,94,0.12)',
+              border: '1px solid rgba(34,197,94,0.35)',
+              color: '#4ade80',
+              fontSize: '0.6rem',
+              fontWeight: 700,
+              letterSpacing: 2,
+              padding: '4px 10px',
+              borderRadius: 2,
+              textTransform: 'uppercase',
+              whiteSpace: 'nowrap',
+            }}>
+              ● SERVER ACTIVE
+            </div>
+            <Link href="/dashboard" style={{ color: '#7F9DB1', fontSize: '0.8rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              ← Dashboard
+            </Link>
           </div>
-          <Link href="/dashboard" style={{ color: '#7F9DB1', fontSize: '0.8rem', textDecoration: 'none' }}>
-            ← Dashboard
-          </Link>
         </div>
       </div>
 
