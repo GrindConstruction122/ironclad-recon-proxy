@@ -42,14 +42,14 @@ export default function LoginPage() {
     <div style={{ minHeight: '100vh', background: '#000814', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Arial, sans-serif' }}>
       <div style={{ width: '100%', maxWidth: 420, padding: '0 24px' }}>
 
-        {/* HEADER — big logo, no text, bold quoted tagline */}
+        {/* HEADER */}
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <img
             src="/Recon.png"
             alt="GRIND RECON"
-            style={{ width: 140, height: 140, objectFit: 'contain', marginBottom: 16 }}
+            style={{ width: 140, height: 140, objectFit: 'contain', display: 'block', margin: '0 auto 16px auto' }}
           />
-          <div style={{ fontWeight: 900, fontSize: '0.85rem', letterSpacing: 3, textTransform: 'uppercase', color: '#C3E3EB', marginTop: 4 }}>
+          <div style={{ fontWeight: 900, fontSize: '0.85rem', letterSpacing: 3, textTransform: 'uppercase', color: '#C3E3EB' }}>
             "KNOW WHAT YOU'RE WALKING INTO"
           </div>
         </div>
