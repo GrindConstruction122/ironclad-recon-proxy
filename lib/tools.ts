@@ -4,8 +4,9 @@
 // model: 'sonnet' = claude-sonnet-4-6 (analytical tools)
 // model: 'haiku'  = claude-haiku-4-5 (document generation tools)
 
-// Legacy-compatible tool shape expected by app/run/page.tsx
-export type LegacyTool = {
+// Tool — the shape page.tsx imports and uses for selectedTool state.
+// Must match exactly what CATEGORIES[n].tools[n] produces.
+export type Tool = {
   id: string;
   name: string;
   desc: string;
@@ -18,7 +19,7 @@ export type Category = {
   name: string;
   icon: string;
   desc: string;
-  tools: LegacyTool[];
+  tools: Tool[];
 };
 
 export const RECON_PREAMBLE = `You are GRIND RECON — a forensic-grade pre-construction intelligence engine built for excavation, site work, heavy civil, GC, and commercial painting contractors. You are not a chatbot, not a summarizer, and not a generalist assistant. You are an analytical instrument designed to be used by senior estimators, project managers, and construction professionals who will rely on your output to make money-on-the-line decisions.
@@ -403,17 +404,17 @@ Plain language rules (apply to every output):
 // Each tool: { id, label, category, model, prompt }
 // -----------------------------------------------------------------------------
 
-export type Tool = {
+// InternalTool — used only within this file to build the tools array.
+// page.tsx never sees this type directly; it uses Tool (above) from CATEGORIES.
+type InternalTool = {
   id: string;
-  label: string;   // internal display label
-  name?: string;   // used by page.tsx tool cards (derived from label in CATEGORIES)
-  desc?: string;   // used by page.tsx tool cards (derived from prompt in CATEGORIES)
+  label: string;
   category: string;
   model: 'sonnet' | 'haiku';
   prompt: string;
 };
 
-export const tools: Tool[] = [
+const tools: InternalTool[] = [
 
   // ===============================================================
   // CATEGORY 1 — PRE-BID / GO-NO-GO
@@ -1986,18 +1987,12 @@ const CATEGORY_META: Record<string, { id: string; name: string; icon: string; de
   },
 };
 
-// Build CATEGORIES by grouping tools and mapping to the legacy shape page.tsx expects
-export const CATEGORIES: Array<{
-  id: string;
-  name: string;
-  icon: string;
-  desc: string;
-  tools: Array<{ id: string; name: string; desc: string; model: 'sonnet' | 'haiku'; prompt: string }>;
-}> = Object.values(CATEGORY_META).map((meta) => ({
+// Build CATEGORIES — this is the export consumed by app/run/page.tsx
+export const CATEGORIES: Category[] = Object.values(CATEGORY_META).map((meta) => ({
   ...meta,
   tools: tools
     .filter((t) => t.category === meta.name)
-    .map((t) => ({
+    .map((t): Tool => ({
       id: t.id,
       name: t.label,
       desc: t.prompt.split('\n')[0].replace(/^[^a-zA-Z]*/, '').slice(0, 120),
