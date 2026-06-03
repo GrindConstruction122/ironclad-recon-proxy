@@ -4,6 +4,23 @@
 // model: 'sonnet' = claude-sonnet-4-6 (analytical tools)
 // model: 'haiku'  = claude-haiku-4-5 (document generation tools)
 
+// Legacy-compatible tool shape expected by app/run/page.tsx
+export type LegacyTool = {
+  id: string;
+  name: string;
+  desc: string;
+  model: 'sonnet' | 'haiku';
+  prompt: string;
+};
+
+export type Category = {
+  id: string;
+  name: string;
+  icon: string;
+  desc: string;
+  tools: LegacyTool[];
+};
+
 export const RECON_PREAMBLE = `You are GRIND RECON — a forensic-grade pre-construction intelligence engine built for excavation, site work, heavy civil, GC, and commercial painting contractors. You are not a chatbot, not a summarizer, and not a generalist assistant. You are an analytical instrument designed to be used by senior estimators, project managers, and construction professionals who will rely on your output to make money-on-the-line decisions.
 
 Workflow position: RECON runs first. RECON output feeds DEPLOY (bid build) and CITADEL (governance). Do not role-play outside this function.
@@ -388,7 +405,9 @@ Plain language rules (apply to every output):
 
 export type Tool = {
   id: string;
-  label: string;
+  label: string;   // internal display label
+  name?: string;   // used by page.tsx tool cards (derived from label in CATEGORIES)
+  desc?: string;   // used by page.tsx tool cards (derived from prompt in CATEGORIES)
   category: string;
   model: 'sonnet' | 'haiku';
   prompt: string;
@@ -1921,3 +1940,68 @@ Format as a professional document package ready for owner delivery.`,
   },
 
 ];
+
+// ---------------------------------------------------------------------------
+// CATEGORIES — derived from tools array.
+// This is the export consumed by app/run/page.tsx to build the tool selector UI.
+// Shape: { id, name, icon, desc, tools: [{ id, name, desc, model, prompt }] }
+// ---------------------------------------------------------------------------
+
+const CATEGORY_META: Record<string, { id: string; name: string; icon: string; desc: string }> = {
+  'Pre-Bid / Go-No-Go': {
+    id: 'prebid',
+    name: 'Pre-Bid / Go-No-Go',
+    icon: '🎯',
+    desc: 'Evaluate bid opportunities, assess risk, and make go/no-go decisions before committing resources.',
+  },
+  'Estimating': {
+    id: 'estimating',
+    name: 'Estimating',
+    icon: '📐',
+    desc: 'Quantity takeoff, cost estimating, scope definition, and bid package assembly tools.',
+  },
+  'Subcontractor Management': {
+    id: 'subcontractor',
+    name: 'Subcontractor Management',
+    icon: '🤝',
+    desc: 'Level sub bids, review proposals, manage scope packages, invoices, and performance.',
+  },
+  'RFI & Submittal': {
+    id: 'rfi',
+    name: 'RFI & Submittal',
+    icon: '📋',
+    desc: 'Generate RFIs, review responses, manage submittal registers, and analyze addenda.',
+  },
+  'Project Administration': {
+    id: 'projectadmin',
+    name: 'Project Administration',
+    icon: '🗂️',
+    desc: 'Change orders, daily reports, meeting minutes, notices, lien waivers, and project status.',
+  },
+  'Closeout': {
+    id: 'closeout',
+    name: 'Closeout',
+    icon: '✅',
+    desc: 'Punchlist, closeout packages, warranty registers, as-builts, final payment, and owner turnover.',
+  },
+};
+
+// Build CATEGORIES by grouping tools and mapping to the legacy shape page.tsx expects
+export const CATEGORIES: Array<{
+  id: string;
+  name: string;
+  icon: string;
+  desc: string;
+  tools: Array<{ id: string; name: string; desc: string; model: 'sonnet' | 'haiku'; prompt: string }>;
+}> = Object.values(CATEGORY_META).map((meta) => ({
+  ...meta,
+  tools: tools
+    .filter((t) => t.category === meta.name)
+    .map((t) => ({
+      id: t.id,
+      name: t.label,
+      desc: t.prompt.split('\n')[0].replace(/^[^a-zA-Z]*/, '').slice(0, 120),
+      model: t.model,
+      prompt: t.prompt,
+    })),
+}));
