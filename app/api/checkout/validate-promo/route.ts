@@ -18,40 +18,16 @@ export async function POST(request: NextRequest) {
       code: promoCode.trim().toUpperCase(),
       active: true,
       limit: 1,
-      expand: ['data.coupon'],
     })
 
     if (promoCodes.data.length === 0) {
       return NextResponse.json({ error: 'Invalid or expired promo code.' }, { status: 400 })
     }
 
-    const promo = promoCodes.data[0]
-    const coupon = (promo as any).coupon as {
-      percent_off?: number | null
-      amount_off?: number | null
-      currency?: string | null
-      duration?: string
-      duration_in_months?: number | null
-    }
-
-    let discountDescription = 'Discount applied'
-    if (coupon.percent_off) {
-      discountDescription = `${coupon.percent_off}% off`
-    } else if (coupon.amount_off && coupon.currency) {
-      discountDescription = `$${(coupon.amount_off / 100).toFixed(2)} off`
-    }
-    if (coupon.duration === 'once') {
-      discountDescription += ' (first month)'
-    } else if (coupon.duration === 'repeating' && coupon.duration_in_months) {
-      discountDescription += ` for ${coupon.duration_in_months} months`
-    } else if (coupon.duration === 'forever') {
-      discountDescription += ' forever'
-    }
-
     return NextResponse.json({
       valid: true,
-      discountDescription,
-      promotionCodeId: promo.id,
+      discountDescription: 'Discount applied',
+      promotionCodeId: promoCodes.data[0].id,
     })
   } catch (err: any) {
     console.error('Promo validation error:', err)
