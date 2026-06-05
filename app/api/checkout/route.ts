@@ -1,3 +1,5 @@
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import Stripe from 'stripe'
@@ -8,53 +10,90 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(request: NextRequest) {
   try {
-    const { promoCode } = await request.json()
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              )
+            } catch {}
+          },
+        },
+      }
+    )
 
-    if (!promoCode || typeof promoCode !== 'string' || !promoCode.trim()) {
-      return NextResponse.json({ error: 'No promo code provided.' }, { status: 400 })
+    const authHeader = request.headers.get('Authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const promoCodes = await stripe.promotionCodes.list({
-      code: promoCode.trim().toUpperCase(),
-      active: true,
-      limit: 1,
-      expand: ['data.coupon'],
-    })
-
-    if (promoCodes.data.length === 0) {
-      return NextResponse.json({ error: 'Invalid or expired promo code.' }, { status: 400 })
+    const token = authHeader.slice(7)
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const promo = promoCodes.data[0]
-    const coupon = (promo as any).coupon as {
-      percent_off?: number | null
-      amount_off?: number | null
-      currency?: string | null
-      duration?: string
-      duration_in_months?: number | null
+    const { priceId, planId, promoCode } = await request.json()
+
+    if (!priceId) {
+      return NextResponse.json({ error: 'Missing priceId' }, { status: 400 })
     }
 
-    let discountDescription = 'Discount applied'
-    if (coupon.percent_off) {
-      discountDescription = `${coupon.percent_off}% off`
-    } else if (coupon.amount_off && coupon.currency) {
-      discountDescription = `$${(coupon.amount_off / 100).toFixed(2)} off`
-    }
-    if (coupon.duration === 'once') {
-      discountDescription += ' (first month)'
-    } else if (coupon.duration === 'repeating' && coupon.duration_in_months) {
-      discountDescription += ` for ${coupon.duration_in_months} months`
-    } else if (coupon.duration === 'forever') {
-      discountDescription += ' forever'
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('stripe_customer_id')
+      .eq('user_id', user.id)
+      .single()
+
+    let customerId = subscription?.stripe_customer_id
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        metadata: { supabase_user_id: user.id },
+      })
+      customerId = customer.id
     }
 
-    return NextResponse.json({
-      valid: true,
-      discountDescription,
-      promotionCodeId: promo.id,
-    })
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
+      customer: customerId,
+      payment_method_types: ['card'],
+      mode: 'subscription',
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?checkout=success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?checkout=cancelled`,
+      metadata: { user_id: user.id, plan_id: planId },
+      subscription_data: { metadata: { user_id: user.id, plan_id: planId } },
+      allow_promotion_codes: true,
+    }
+
+    // Only apply promo code if one was provided and validated
+    if (promoCode && typeof promoCode === 'string' && promoCode.trim().length > 0) {
+      const promoCodes = await stripe.promotionCodes.list({
+        code: promoCode.trim().toUpperCase(),
+        active: true,
+        limit: 1,
+      })
+
+      if (promoCodes.data.length > 0) {
+        // Remove allow_promotion_codes when applying a specific discount
+        delete sessionParams.allow_promotion_codes
+        sessionParams.discounts = [{ promotion_code: promoCodes.data[0].id }]
+      }
+      // If promo code not found, just proceed without it — don't block checkout
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams)
+
+    return NextResponse.json({ url: session.url })
   } catch (err: any) {
-    console.error('Promo validation error:', err)
-    return NextResponse.json({ error: 'Could not validate promo code.' }, { status: 500 })
+    console.error('Checkout error:', err)
+    return NextResponse.json({ error: err.message || 'Checkout failed' }, { status: 500 })
   }
 }
