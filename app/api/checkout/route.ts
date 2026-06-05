@@ -1,63 +1,31 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import Stripe from 'stripe'
- 
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-04-22.dahlia',
 })
- 
+
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() { return cookieStore.getAll() },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              )
-            } catch {}
-          },
-        },
-      }
-    )
- 
-    const authHeader = request.headers.get('Authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
- 
-    const token = authHeader.slice(7)
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
- 
     const { promoCode } = await request.json()
- 
+
     if (!promoCode || typeof promoCode !== 'string' || !promoCode.trim()) {
       return NextResponse.json({ error: 'No promo code provided.' }, { status: 400 })
     }
- 
+
     const promoCodes = await stripe.promotionCodes.list({
       code: promoCode.trim().toUpperCase(),
       active: true,
       limit: 1,
       expand: ['data.coupon'],
     })
- 
+
     if (promoCodes.data.length === 0) {
       return NextResponse.json({ error: 'Invalid or expired promo code.' }, { status: 400 })
     }
- 
+
     const promo = promoCodes.data[0]
-    // coupon is expanded — cast to any to access fields safely across API versions
     const coupon = (promo as any).coupon as {
       percent_off?: number | null
       amount_off?: number | null
@@ -65,8 +33,7 @@ export async function POST(request: NextRequest) {
       duration?: string
       duration_in_months?: number | null
     }
- 
-    // Build a human-readable discount description
+
     let discountDescription = 'Discount applied'
     if (coupon.percent_off) {
       discountDescription = `${coupon.percent_off}% off`
@@ -80,7 +47,7 @@ export async function POST(request: NextRequest) {
     } else if (coupon.duration === 'forever') {
       discountDescription += ' forever'
     }
- 
+
     return NextResponse.json({
       valid: true,
       discountDescription,

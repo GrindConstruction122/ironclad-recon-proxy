@@ -86,15 +86,9 @@ export default function PricingPage() {
     setDiscountDescription(null)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { window.location.href = '/login'; return }
-
       const response = await fetch('/api/checkout/validate-promo', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ promoCode: code }),
       })
       const data = await response.json()
