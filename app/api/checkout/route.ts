@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       code: promoCode.trim().toUpperCase(),
       active: true,
       limit: 1,
+      expand: ['data.coupon'],
     })
  
     if (promoCodes.data.length === 0) {
@@ -56,7 +57,14 @@ export async function POST(request: NextRequest) {
     }
  
     const promo = promoCodes.data[0]
-    const coupon = promo.coupon
+    // coupon is expanded — cast to any to access fields safely across API versions
+    const coupon = (promo as any).coupon as {
+      percent_off?: number | null
+      amount_off?: number | null
+      currency?: string | null
+      duration?: string
+      duration_in_months?: number | null
+    }
  
     // Build a human-readable discount description
     let discountDescription = 'Discount applied'
