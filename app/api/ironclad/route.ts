@@ -14,6 +14,12 @@ const anthropic = new Anthropic({
 const SONNET = 'claude-sonnet-4-6'
 const HAIKU  = 'claude-haiku-4-5'
 
+// Hard limits from Anthropic API
+const MAX_PDF_PAGES   = 580   // Anthropic hard limit is 600 — we stop at 580 for safety headroom
+const MAX_TOKENS_SAFE = 900000 // Anthropic hard limit is 1,000,000 — we stop at 900K for headroom
+const TOKENS_PER_PAGE = 1500  // Conservative estimate for drawing sets (scanned sheets run 1500-3000)
+const SYSTEM_PROMPT_TOKENS = 5000 // Estimate for RECON_PREAMBLE + tool.prompt
+
 export const maxDuration = 300
 export const runtime = 'nodejs'
 
@@ -30,6 +36,7 @@ interface FileRef {
   signedUrl: string
   mimeType: string
   path: string
+  pageCount?: number  // Optional — populated by client if available
 }
 
 /**
@@ -50,6 +57,44 @@ async function uploadToAnthropicFiles(fileRef: FileRef): Promise<string> {
   })
 
   return uploaded.id
+}
+
+/**
+ * Pre-flight check: estimate token usage before making the API call.
+ * Returns an error string if the estimated token count would exceed safe limits,
+ * or null if it looks safe to proceed.
+ */
+function preflightTokenCheck(fileRefs: FileRef[]): string | null {
+  const pdfFiles = fileRefs.filter(f => f.mimeType === 'application/pdf')
+
+  for (const pdf of pdfFiles) {
+    if (pdf.pageCount && pdf.pageCount > MAX_PDF_PAGES) {
+      const maxSafePages = MAX_PDF_PAGES
+      return (
+        `"${pdf.name}" has ${pdf.pageCount} pages, which exceeds the ${MAX_PDF_PAGES}-page limit. ` +
+        `Please split this file into sections of ${maxSafePages} pages or fewer and upload each section separately. ` +
+        `Split by discipline — Civil, Structural, Architectural, MEP.`
+      )
+    }
+  }
+
+  // Estimate total tokens across all PDFs
+  const totalPageEstimate = pdfFiles.reduce((sum, f) => sum + (f.pageCount || 100), 0)
+  const estimatedTokens = (totalPageEstimate * TOKENS_PER_PAGE) + SYSTEM_PROMPT_TOKENS
+
+  if (estimatedTokens > MAX_TOKENS_SAFE) {
+    const maxSafePages = Math.floor(
+      (MAX_TOKENS_SAFE - SYSTEM_PROMPT_TOKENS) / TOKENS_PER_PAGE
+    )
+    return (
+      `The uploaded documents are estimated to exceed the processing limit ` +
+      `(~${Math.round(estimatedTokens / 1000)}K tokens estimated, 900K maximum). ` +
+      `Please split your plan set into sections of approximately ${maxSafePages} pages or fewer. ` +
+      `Most plan sets should be split by discipline — Civil, Structural, Architectural, MEP.`
+    )
+  }
+
+  return null
 }
 
 export async function POST(request: NextRequest) {
@@ -120,6 +165,16 @@ export async function POST(request: NextRequest) {
     const tool = findTool(toolId)
     if (!tool) {
       return NextResponse.json({ error: 'Tool not found' }, { status: 404 })
+    }
+
+    // ── PRE-FLIGHT CHECK ──
+    // Estimate token usage before hitting the API. Returns a user-friendly
+    // error message if the upload would exceed safe limits.
+    if (fileRefs.length > 0) {
+      const preflightError = preflightTokenCheck(fileRefs)
+      if (preflightError) {
+        return NextResponse.json({ error: preflightError }, { status: 400 })
+      }
     }
 
     // Upload all files to Anthropic Files API in parallel
@@ -211,18 +266,73 @@ export async function POST(request: NextRequest) {
 
   } catch (err: any) {
     console.error('IRONCLAD API error:', err)
-    
-    let userMessage = 'Something went wrong. Please try again.'
-    if (err.status === 529 || err.message?.includes('Overloaded')) {
-      userMessage = 'Anthropic servers are temporarily overloaded. Please wait 30 seconds and try again.'
-    } else if (err.status === 429 || err.message?.includes('rate_limit')) {
-      userMessage = 'Rate limit reached. Please wait a moment and try again.'
-    } else if (err.message?.includes('credit')) {
-      userMessage = 'API credit issue. Please contact support.'
-    } else if (err.message?.includes('Failed to fetch file')) {
-      userMessage = 'Could not retrieve uploaded file. Try uploading again.'
+
+    const errorMessage = err?.error?.error?.message || err?.message || ''
+
+    // ── 600-PAGE PDF LIMIT ──
+    // Anthropic rejects the entire request before processing starts.
+    if (errorMessage.includes('maximum of 600 PDF pages')) {
+      return NextResponse.json({
+        error:
+          'This plan set exceeds the 600-page limit. Please split the file into sections ' +
+          'of under 580 pages and upload each section separately. Split by discipline — ' +
+          'Civil, Structural, Architectural, MEP.',
+      }, { status: 400 })
     }
-    
-    return NextResponse.json({ error: userMessage }, { status: err.status || 500 })
+
+    // ── CONTEXT WINDOW / TOKEN LIMIT ──
+    // File is within page count but generates too many tokens.
+    // Also catches the timeout scenario where the request ran too long
+    // and Vercel killed it before the API could respond.
+    if (
+      errorMessage.includes('prompt is too long') ||
+      errorMessage.includes('tokens > 1000000 maximum') ||
+      err.status === 524 ||
+      err.status === 408 ||
+      errorMessage.includes('timed out')
+    ) {
+      const match = errorMessage.match(/(\d[\d,]*)\s*tokens?\s*>\s*(\d[\d,]*)\s*maximum/)
+      const submitted = match ? parseInt(match[1].replace(/,/g, '')).toLocaleString() : null
+      const baseMsg =
+        'This plan set is too large to process in a single upload. ' +
+        'Please split the file into sections of approximately 150 pages or fewer and upload each section separately. ' +
+        'Split by discipline — Civil, Structural, Architectural, MEP. ' +
+        'Spec books and project manuals can typically be uploaded separately from drawing sets.'
+      const tokenDetail = submitted ? ` (Estimated size: ~${submitted} tokens, 1,000,000 maximum.)` : ''
+      return NextResponse.json({ error: baseMsg + tokenDetail }, { status: 400 })
+    }
+
+    // ── OVERLOADED ──
+    if (err.status === 529 || errorMessage.includes('Overloaded')) {
+      return NextResponse.json({
+        error: 'Anthropic servers are temporarily overloaded. Please wait 30 seconds and try again.',
+      }, { status: 503 })
+    }
+
+    // ── RATE LIMIT ──
+    if (err.status === 429 || errorMessage.includes('rate_limit')) {
+      return NextResponse.json({
+        error: 'Rate limit reached. Please wait a moment and try again.',
+      }, { status: 429 })
+    }
+
+    // ── API CREDIT ISSUE ──
+    if (errorMessage.includes('credit')) {
+      return NextResponse.json({
+        error: 'API credit issue. Please contact support.',
+      }, { status: 402 })
+    }
+
+    // ── FILE FETCH FAILURE ──
+    if (errorMessage.includes('Failed to fetch file')) {
+      return NextResponse.json({
+        error: 'Could not retrieve uploaded file. Please try uploading again.',
+      }, { status: 500 })
+    }
+
+    // ── GENERIC FALLBACK ──
+    return NextResponse.json({
+      error: 'Something went wrong. Please try again.',
+    }, { status: err.status || 500 })
   }
 }
