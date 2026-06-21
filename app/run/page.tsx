@@ -539,14 +539,9 @@ export default function RunPage() {
           </div>
         )}
 
-        {/* Running spinner */}
+        {/* Running — progress messages */}
         {status === 'running' && (
-          <div className="no-print" style={{ background: '#0d0d0d', border: '1px solid #003B66', borderRadius: 6, padding: 40, textAlign: 'center', marginBottom: 24 }}>
-            <div style={{ width: 48, height: 48, border: '4px solid #061E45', borderTop: '4px solid #3D4EAC', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
-            <div style={{ color: '#C3E3EB', fontSize: '0.85rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>● ANALYZING DOCUMENTS</div>
-            <div style={{ color: '#7F9DB1', fontSize: '0.78rem', marginTop: 6 }}>This may take 30–120 seconds for large files</div>
-            <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-          </div>
+          <RunningPanel toolName={selectedTool?.name || ''} model={selectedTool?.model || 'sonnet'} />
         )}
 
         {/* Output */}
@@ -605,6 +600,125 @@ export default function RunPage() {
           </div>
         )}
 
+      </div>
+    </div>
+  )
+}
+
+// ── PROGRESS MESSAGE ENGINE ──────────────────────────────────────────────────
+// Messages are keyed to elapsed seconds. Each phase shows for its duration,
+// then advances. The final message holds until the run completes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PROGRESS_PHASES: { seconds: number; message: string; sub: string }[] = [
+  { seconds: 3,  message: 'UPLOADING TO ANALYSIS ENGINE',   sub: 'Transferring documents to secure processing...' },
+  { seconds: 8,  message: 'AUTHENTICATING SESSION',          sub: 'Verifying credentials and token balance...' },
+  { seconds: 20, message: 'READING BID DOCUMENTS',           sub: 'Parsing plans, specs, and project manual...' },
+  { seconds: 45, message: 'ANALYZING SCOPE AND RISK',        sub: 'Extracting scope items, flags, and exposures...' },
+  { seconds: 70, message: 'GENERATING FINDINGS',             sub: 'Building citations, severity ratings, and actions...' },
+  { seconds: 999, message: 'FINALIZING OUTPUT',              sub: 'Almost there — writing Red Team and closing sections...' },
+]
+
+function useElapsed(active: boolean): number {
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    if (!active) { setElapsed(0); return }
+    setElapsed(0)
+    const interval = setInterval(() => setElapsed(s => s + 1), 1000)
+    return () => clearInterval(interval)
+  }, [active])
+  return elapsed
+}
+
+function RunningPanel({ toolName, model }: { toolName: string; model: string }) {
+  const elapsed = useElapsed(true)
+
+  const phase = PROGRESS_PHASES.find(p => elapsed < p.seconds) || PROGRESS_PHASES[PROGRESS_PHASES.length - 1]
+  const pctDone = Math.min(95, Math.round((elapsed / 90) * 100))
+
+  return (
+    <div className="no-print" style={{
+      background: '#0d0d0d',
+      border: '1px solid #003B66',
+      borderRadius: 6,
+      padding: '32px 36px',
+      marginBottom: 24,
+    }}>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg) } }
+        @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } }
+      `}</style>
+
+      {/* Tool name */}
+      <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#36454F' }}>RUNNING</div>
+        <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#C3E3EB', letterSpacing: 1 }}>{toolName}</div>
+        <div style={{
+          fontSize: '0.55rem', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase',
+          color: model === 'sonnet' ? '#f59e0b' : '#7F9DB1',
+          background: model === 'sonnet' ? 'rgba(245,158,11,0.1)' : 'rgba(127,157,177,0.1)',
+          padding: '2px 6px', borderRadius: 2, marginLeft: 2
+        }}>
+          {model === 'sonnet' ? 'Sonnet' : 'Haiku'}
+        </div>
+      </div>
+
+      {/* Spinner + current message */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 22 }}>
+        <div style={{
+          width: 40, height: 40, flexShrink: 0,
+          border: '3px solid #061E45', borderTop: '3px solid #3D4EAC',
+          borderRadius: '50%', animation: 'spin 0.9s linear infinite'
+        }} />
+        <div>
+          <div style={{
+            color: '#C3E3EB', fontSize: '0.82rem', fontWeight: 700,
+            letterSpacing: 2, textTransform: 'uppercase',
+            animation: 'pulse 2s ease-in-out infinite'
+          }}>
+            ● {phase.message}
+          </div>
+          <div style={{ color: '#7F9DB1', fontSize: '0.74rem', marginTop: 5, lineHeight: 1.4 }}>
+            {phase.sub}
+          </div>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ background: '#061E45', borderRadius: 3, height: 4, marginBottom: 10, overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', borderRadius: 3,
+          background: 'linear-gradient(90deg, #003B66, #3D4EAC)',
+          width: `${pctDone}%`,
+          transition: 'width 1s ease-out'
+        }} />
+      </div>
+
+      {/* Elapsed + phase steps */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontSize: '0.68rem', color: '#36454F', fontFamily: 'monospace' }}>
+          {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')} elapsed
+        </div>
+        <div style={{ fontSize: '0.65rem', color: '#36454F' }}>
+          {pctDone}% complete
+        </div>
+      </div>
+
+      {/* Phase step dots */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 14, justifyContent: 'center' }}>
+        {PROGRESS_PHASES.slice(0, -1).map((p, i) => {
+          const prevSeconds = i === 0 ? 0 : PROGRESS_PHASES[i - 1].seconds
+          const isActive = elapsed >= prevSeconds && elapsed < p.seconds
+          const isDone = elapsed >= p.seconds
+          return (
+            <div key={i} style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: isDone ? '#3D4EAC' : isActive ? '#C3E3EB' : '#061E45',
+              border: `1px solid ${isDone || isActive ? '#3D4EAC' : '#003B66'}`,
+              transition: 'all 0.5s'
+            }} />
+          )
+        })}
       </div>
     </div>
   )
