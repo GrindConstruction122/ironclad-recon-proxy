@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { CATEGORIES, RECON_PREAMBLE } from '@/lib/tools'
+import { CATEGORIES, RECON_PREAMBLE, DOCGEN_SKELETON } from '@/lib/tools'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -97,6 +97,27 @@ function preflightTokenCheck(fileRefs: FileRef[]): string | null {
   return null
 }
 
+/**
+ * Build the system prompt based on tool type.
+ *
+ * ANALYTICAL tools: RECON_PREAMBLE (full analytical skeleton — header, severity,
+ * exposure, action ownership, Red Team, Docs Needed) + tool.prompt
+ *
+ * DOCGEN tools: DOCGEN_SKELETON (voice/tone + citation discipline only —
+ * no VERDICT header, no exposure-per-flag, no Red Team) + tool.prompt
+ *
+ * This prevents the analytical skeleton from appearing on external-facing
+ * documents (Notice Letters, Owner Turnover Packages, Sub Scope Packages, etc.)
+ * where Red Team / VERDICT / exposure tags are wrong or damaging.
+ */
+function buildSystemPrompt(toolType: 'analytical' | 'docgen', toolPrompt: string): string {
+  if (toolType === 'analytical') {
+    return RECON_PREAMBLE + toolPrompt
+  } else {
+    return DOCGEN_SKELETON + toolPrompt
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('Authorization')
@@ -168,8 +189,6 @@ export async function POST(request: NextRequest) {
     }
 
     // ── PRE-FLIGHT CHECK ──
-    // Estimate token usage before hitting the API. Returns a user-friendly
-    // error message if the upload would exceed safe limits.
     if (fileRefs.length > 0) {
       const preflightError = preflightTokenCheck(fileRefs)
       if (preflightError) {
@@ -226,7 +245,11 @@ export async function POST(request: NextRequest) {
     const model     = tool.model === 'sonnet' ? SONNET : HAIKU
     const maxTokens = tool.model === 'sonnet' ? 10000 : 4000
 
-    const systemPrompt = RECON_PREAMBLE + tool.prompt
+    // ── SYSTEM PROMPT — type-aware ──
+    // Analytical tools get the full RECON_PREAMBLE (header, severity, exposure,
+    // action ownership, Red Team, Docs Needed) + tool.prompt.
+    // Docgen tools get DOCGEN_SKELETON (voice/tone + citation only) + tool.prompt.
+    const systemPrompt = buildSystemPrompt(tool.type, tool.prompt)
 
     const { data: run, error: runError } = await serviceClient
       .from('runs')
@@ -269,8 +292,6 @@ export async function POST(request: NextRequest) {
 
     const errorMessage = err?.error?.error?.message || err?.message || ''
 
-    // ── 600-PAGE PDF LIMIT ──
-    // Anthropic rejects the entire request before processing starts.
     if (errorMessage.includes('maximum of 600 PDF pages')) {
       return NextResponse.json({
         error:
@@ -280,10 +301,6 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // ── CONTEXT WINDOW / TOKEN LIMIT ──
-    // File is within page count but generates too many tokens.
-    // Also catches the timeout scenario where the request ran too long
-    // and Vercel killed it before the API could respond.
     if (
       errorMessage.includes('prompt is too long') ||
       errorMessage.includes('tokens > 1000000 maximum') ||
@@ -302,35 +319,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: baseMsg + tokenDetail }, { status: 400 })
     }
 
-    // ── OVERLOADED ──
     if (err.status === 529 || errorMessage.includes('Overloaded')) {
       return NextResponse.json({
         error: 'Anthropic servers are temporarily overloaded. Please wait 30 seconds and try again.',
       }, { status: 503 })
     }
 
-    // ── RATE LIMIT ──
     if (err.status === 429 || errorMessage.includes('rate_limit')) {
       return NextResponse.json({
         error: 'Rate limit reached. Please wait a moment and try again.',
       }, { status: 429 })
     }
 
-    // ── API CREDIT ISSUE ──
     if (errorMessage.includes('credit')) {
       return NextResponse.json({
         error: 'API credit issue. Please contact support.',
       }, { status: 402 })
     }
 
-    // ── FILE FETCH FAILURE ──
     if (errorMessage.includes('Failed to fetch file')) {
       return NextResponse.json({
         error: 'Could not retrieve uploaded file. Please try uploading again.',
       }, { status: 500 })
     }
 
-    // ── GENERIC FALLBACK ──
     return NextResponse.json({
       error: 'Something went wrong. Please try again.',
     }, { status: err.status || 500 })

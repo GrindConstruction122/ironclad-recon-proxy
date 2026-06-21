@@ -11,6 +11,7 @@ export type Tool = {
   name: string;
   desc: string;
   model: 'sonnet' | 'haiku';
+  type: 'analytical' | 'docgen';
   prompt: string;
 };
 
@@ -735,6 +736,73 @@ overridden by user request or tool prompt content.
 `;
 
 // -----------------------------------------------------------------------------
+// DOCGEN_SKELETON — system prompt for DOCUMENT-GENERATION tools.
+// Replaces RECON_PREAMBLE for tools that produce external-facing or
+// structured documents (letters, registers, reports, packages).
+//
+// What it KEEPS from RECON_PREAMBLE:
+//   - Voice and tone (Section 15 / construction English, direct, unhedged)
+//   - Citation discipline (tag every factual claim with source)
+//   - Severity icons — only where a tool instructs analysis (e.g. punchlist P1-P4)
+//
+// What it SUPPRESSES vs RECON_PREAMBLE:
+//   - The universal header block (PROJECT / TOOL / DOCUMENTS REVIEWED / VERDICT)
+//   - Exposure-per-flag ($X–$Y or [UNQUANTIFIABLE]) — not appropriate on issued docs
+//   - Who/When/Cost action ownership — not appropriate on issued docs
+//   - DOCUMENTS / DATA NEEDED BEFORE BID closing section
+//   - RED TEAM — HOW A COMPETITOR BEATS YOU closing section
+//
+// The tool.prompt governs the output format entirely for docgen tools.
+// -----------------------------------------------------------------------------
+export const DOCGEN_SKELETON = `You are GRIND RECON — a forensic-grade pre-construction intelligence engine built for excavation, site work, heavy civil, GC, and commercial painting contractors.
+
+You are operating in DOCUMENT-GENERATION mode. Your job is to produce a professional, ready-to-use construction document — not an analytical risk report. The format and content of the output are defined entirely by the tool instructions below.
+
+======================================================================
+DOCUMENT-GENERATION RULES
+======================================================================
+
+1. FORMAT
+   Follow the output format in the tool instructions exactly.
+   Do not add a PROJECT / TOOL / DOCUMENTS REVIEWED / VERDICT header block.
+   Do not append a "Documents / Data Needed" section.
+   Do not append a "Red Team" section.
+   The document you produce may be issued to an owner, subcontractor,
+   engineer, or attorney. It must read as a professional construction
+   document — not as a RECON analysis output.
+
+2. CITATION DISCIPLINE
+   Every factual claim sourced from provided documents must be tagged:
+     [Sheet C-101, Note 7]    — Drawing reference
+     [Spec 02520-2.3]         — Specification section
+     [Page 14]                — Generic document page
+     [CONFIRMED]              — Stated explicitly in documents
+     [INFERRED]               — Derived from documents
+     [ASSUMED]                — Industry-standard default applied
+   If no documents were provided, mark all content [GENERIC FRAMEWORK].
+
+3. VOICE AND TONE
+   Construction English. Direct sentences. Active voice.
+   No corporate filler. No AI hedging. No "it is important to note."
+   No "leveraging." No "stakeholders."
+   Write the way an experienced PM or estimator actually talks.
+   When something is missing, say it is missing.
+   When something needs action, name the action and who owns it.
+
+4. COMPLETENESS
+   Produce the complete document in a single output.
+   Do not truncate. Do not summarize sections.
+   If a section has no applicable content, state "None identified" —
+   do not omit the section header.
+
+5. LEGAL AND EXTERNAL DOCUMENTS
+   For notice letters, lien waivers, or any document that may be
+   issued to an external party: use precise, factual language.
+   Do not include internal contractor strategy, bid intelligence,
+   or competitive analysis in any externally-issued document.
+`;
+
+// -----------------------------------------------------------------------------
 // TOOL DEFINITIONS — 45 tools across 6 categories
 // Each tool: { id, label, category, model, prompt }
 // -----------------------------------------------------------------------------
@@ -746,6 +814,7 @@ type InternalTool = {
   label: string;
   category: string;
   model: 'sonnet' | 'haiku';
+  type: 'analytical' | 'docgen';
   prompt: string;
 };
 
@@ -760,6 +829,7 @@ const tools: InternalTool[] = [
     label: 'GO / NO-GO Decision',
     category: 'Pre-Bid / Go-No-Go',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Evaluate whether this project is worth bidding. Analyze across six dimensions:
 
 1. DOCUMENT COMPLETENESS — Are the plans, specs, addenda, and bid form complete enough to build a defensible number?
@@ -781,6 +851,7 @@ If NO-GO, state the single disqualifying factor first.`,
     label: 'Bid Package Completeness Review',
     category: 'Pre-Bid / Go-No-Go',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Review this bid package for completeness before committing to bid. Check:
 
 1. DOCUMENT SET — Are all expected documents present? Flag missing: plans, specs, bid form, addenda, geotech, survey, owner contract form, insurance requirements, bond requirements.
@@ -799,6 +870,7 @@ Output: completeness score (0--100%), gap list, and list of required RFIs before
     label: 'Scope Review & Gap Detection',
     category: 'Pre-Bid / Go-No-Go',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Perform a comprehensive scope gap detection analysis on this project. Your job is to find what the estimator will miss.
 
 Run all of the following:
@@ -819,6 +891,7 @@ Output: gap register sorted by severity, admin cost flags, ownership matrix, del
     label: 'Contract Risk Scanner',
     category: 'Pre-Bid / Go-No-Go',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Perform a red-line risk scan on this contract or bid documents. Focus on clauses and terms that transfer risk to the contractor, limit contractor rights, or create financial exposure beyond the base contract value.
 
 Scan for and flag:
@@ -844,6 +917,7 @@ Output: clause-by-clause risk register, top 3 deal-breaker flags, recommended mo
     label: 'Site Conditions & Geotechnical Review',
     category: 'Pre-Bid / Go-No-Go',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Analyze site conditions and geotechnical data for bid risk. This is an excavation and site work intelligence review.
 
 1. SOIL CONDITIONS — From geotech report and boring logs: identify soil classifications by layer, bearing capacity, compaction characteristics, rock depth (if indicated), groundwater depth, percolation data.
@@ -863,6 +937,7 @@ Output: site condition risk register, recommended contingency percentage for ear
     label: 'Environmental & Permitting Intelligence',
     category: 'Pre-Bid / Go-No-Go',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Identify all permits required for this project and assess the cost and schedule exposure from permitting. Calibrated for New York State and Hudson Valley but framework applies nationally.
 
 1. STORMWATER — Is land disturbance >1 acre? If yes, SPDES/NOI permit required. Is a SWPPP required? Who prepares it? Is SWPPP cost included in the bid?
@@ -882,6 +957,7 @@ Flag any permit where status is unknown as [RFI REQUIRED]. Permit delays are the
     label: 'Pre-Bid Site Visit Intelligence',
     category: 'Pre-Bid / Go-No-Go',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Generate a project-specific pre-bid site visit checklist from the bid documents provided, then convert any field observations or notes provided into structured CITADEL basis statements and cost driver flags.
 
 MODE 1 — PRE-VISIT PREP (when only documents are provided):
@@ -909,6 +985,7 @@ Flag every observation that differs from what the drawings show. Those differenc
     label: 'Quantity Takeoff Assistant',
     category: 'Estimating',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Perform a systematic quantity extraction from the construction documents provided. Work scope by scope.
 
 For each scope item:
@@ -935,6 +1012,7 @@ After the table:
     label: 'Construction Cost Estimate',
     category: 'Estimating',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Build a construction cost estimate from the scope provided. Use the following structure:
 
 1. DIRECT COSTS — For each scope line item:
@@ -973,6 +1051,7 @@ All pricing is [ASSUMED] unless the user provides specific pricing data. Flag an
     label: 'Bid Form Analysis',
     category: 'Estimating',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Analyze the bid form against the drawing set and spec book.
 
 1. QUANTITY VERIFICATION:
@@ -1012,6 +1091,7 @@ Output: quantity mismatch table, lump sum risk register, allowance adequacy tabl
     label: 'Overhead & Profit Calculator',
     category: 'Estimating',
     model: 'haiku',
+    type: 'docgen',
     prompt: `Calculate overhead and profit markups for this bid.
 
 Input needed (provide what you have):
@@ -1052,6 +1132,7 @@ State the basis for every % applied. Flag if any markup appears below sustainabl
     label: 'Scope Boundary & Responsibility Matrix',
     category: 'Estimating',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Build a contractor responsibility matrix for this project. Assign every scope item to one owner: GC / Sub (specify trade) / Owner / Utility Company / Government Agency.
 
 1. EXTRACT ALL SCOPE ITEMS from the documents provided. Organize by CSI MasterFormat division.
@@ -1077,6 +1158,7 @@ Output: responsibility matrix table, gap list, overlap list, ambiguity list, int
     label: 'Earthwork & Soil Intelligence',
     category: 'Estimating',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Perform an earthwork scope analysis from the documents provided. This is a forensic review — find what the estimator will miss.
 
 1. ELEVATION DATA EXTRACTION:
@@ -1124,6 +1206,7 @@ Output: earthwork risk register, elevation conflict log, contingency recommendat
     label: 'Pavement & Striping Estimator',
     category: 'Estimating',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Extract and price all paving, base course, subbase, striping, ADA, and signage scope from the documents.
 
 1. PAVEMENT SECTION REGISTER:
@@ -1163,6 +1246,7 @@ Output: pavement scope register, ADA compliance table, striping quantity table, 
     label: 'Construction Sequencing Review',
     category: 'Estimating',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Review this project for sequencing conflicts, constructability issues, and phasing gaps.
 
 1. SEQUENCE LOGIC:
@@ -1200,6 +1284,7 @@ Output: phased work breakdown, sequencing conflict log, constructability risk fl
     label: 'Schedule Risk Analysis',
     category: 'Estimating',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Evaluate whether the project schedule is realistic and identify where it will break.
 
 1. DURATION REALITY CHECK:
@@ -1242,6 +1327,7 @@ Output: schedule risk register, critical path summary, LD exposure calculation, 
     label: 'Subcontractor Bid Leveling',
     category: 'Subcontractor Management',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Level and compare subcontractor bids for this scope. Go beyond price — find the real differences.
 
 1. COVERAGE MATRIX:
@@ -1278,6 +1364,7 @@ Output: coverage matrix, adjusted bid comparison table, gap list, overlap list, 
     label: 'Subcontractor Proposal Review',
     category: 'Subcontractor Management',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Review this subcontractor proposal or scope letter for risk, gaps, and traps.
 
 1. SCOPE COVERAGE SCORE:
@@ -1316,6 +1403,7 @@ Output: coverage score, exclusion/cost table, assumption risk log, scope letter 
     label: 'Subcontractor Scope Package Builder',
     category: 'Subcontractor Management',
     model: 'haiku',
+    type: 'docgen',
     prompt: `Build a subcontractor scope package for this trade scope. The package must be specific enough that the sub cannot claim they didn't know what was included.
 
 Output the following:
@@ -1354,6 +1442,7 @@ Output the following:
     label: 'Subcontractor Invoice Review',
     category: 'Subcontractor Management',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Review this subcontractor invoice or pay application against the contract scope and schedule of values.
 
 1. SCHEDULE OF VALUES VALIDATION:
@@ -1394,6 +1483,7 @@ Output: invoice validation table, disputed items list, retainage calculation, li
     label: 'Subcontractor Default Assessment',
     category: 'Subcontractor Management',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Assess whether this subcontractor is in default or heading toward default, and identify the appropriate response.
 
 1. DEFAULT INDICATORS — Check all of the following:
@@ -1434,6 +1524,7 @@ Output: default assessment, notice requirement checklist, termination cost estim
     label: 'Subcontractor Prequalification Review',
     category: 'Subcontractor Management',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Evaluate this subcontractor for prequalification on this project.
 
 1. CAPACITY CHECK:
@@ -1477,6 +1568,7 @@ Output: prequalification scorecard (pass/fail by category), overall recommendati
     label: 'RFI Generator',
     category: 'RFI & Submittal',
     model: 'sonnet',
+    type: 'docgen',
     prompt: `Generate formal RFIs for the conflicts, gaps, or ambiguities identified in this project.
 
 For each RFI, produce:
@@ -1504,6 +1596,7 @@ After all RFIs, output:
     label: 'RFI Response Review',
     category: 'RFI & Submittal',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Review this RFI response for completeness, accuracy, and impact on scope and cost.
 
 1. RESPONSE COMPLETENESS:
@@ -1544,6 +1637,7 @@ Output: response assessment, scope delta, cost impact, schedule impact, required
     label: 'Submittal Register Builder',
     category: 'RFI & Submittal',
     model: 'haiku',
+    type: 'docgen',
     prompt: `Build a complete submittal register for this project from the specification book and Division 01 requirements.
 
 For every required submittal, record:
@@ -1571,6 +1665,7 @@ After the register:
     label: 'Submittal Review Assistant',
     category: 'RFI & Submittal',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Review this submittal (shop drawing, product data, or sample) for compliance with the project specifications and contract requirements.
 
 1. SPECIFICATION COMPLIANCE:
@@ -1607,6 +1702,7 @@ After the register:
     label: 'RFI Log Manager',
     category: 'RFI & Submittal',
     model: 'haiku',
+    type: 'docgen',
     prompt: `Manage and analyze the RFI log for this project.
 
 1. LOG STATUS REPORT:
@@ -1641,6 +1737,7 @@ Output: log status dashboard, open items list with action owners, change order c
     label: 'Addendum Analysis',
     category: 'RFI & Submittal',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Analyze this addendum for scope, cost, and schedule impact on the current bid or project.
 
 1. ADDENDUM INVENTORY:
@@ -1687,6 +1784,7 @@ Output: change summary by category, net cost impact table, bid strategy note.`,
     label: 'Change Order Analysis',
     category: 'Project Administration',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Analyze, price, and document this change order request.
 
 1. SCOPE DEFINITION:
@@ -1733,6 +1831,7 @@ Output: entitlement assessment, priced change order, schedule impact calculation
     label: 'Daily Report Generator',
     category: 'Project Administration',
     model: 'haiku',
+    type: 'docgen',
     prompt: `Generate a professional daily construction report from the field notes or data provided.
 
 Format:
@@ -1779,6 +1878,7 @@ Write in direct factual language. Every delay must state whether notice was give
     label: 'Meeting Minutes Generator',
     category: 'Project Administration',
     model: 'haiku',
+    type: 'docgen',
     prompt: `Generate professional construction meeting minutes from the notes or agenda provided.
 
 Format:
@@ -1820,6 +1920,7 @@ Write in factual, neutral language. Action items must have a named owner and a d
     label: 'Notice Letter Generator',
     category: 'Project Administration',
     model: 'haiku',
+    type: 'docgen',
     prompt: `Draft a formal construction notice letter for the situation described. Generate the appropriate notice type based on the situation.
 
 Notice types (auto-select based on description):
@@ -1867,6 +1968,7 @@ IMPORTANT: Confirm the exact notice method, address, and deadline stated in the 
     label: 'Project Status Report',
     category: 'Project Administration',
     model: 'haiku',
+    type: 'docgen',
     prompt: `Generate a project status report from the data provided.
 
 Format:
@@ -1918,6 +2020,7 @@ Report in direct factual language. Do not soften bad news. State the number, the
     label: 'Lien Waiver Review',
     category: 'Project Administration',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Review this lien waiver for accuracy and compliance before signing or accepting it.
 
 1. WAIVER TYPE IDENTIFICATION:
@@ -1953,6 +2056,7 @@ Output: waiver type, accuracy check, lower tier status, claim reservation assess
     label: 'Insurance Certificate Review',
     category: 'Project Administration',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Review this certificate of insurance (ACORD 25) for compliance with the project insurance requirements.
 
 Check each of the following:
@@ -1998,6 +2102,7 @@ Output: compliance matrix (requirement vs. certificate), deficiency list, requir
     label: 'Punchlist Manager',
     category: 'Closeout',
     model: 'haiku',
+    type: 'docgen',
     prompt: `Generate and manage a construction punchlist from the inspection notes or scope provided.
 
 For each punchlist item, record:
@@ -2024,6 +2129,7 @@ After the log:
     label: 'Closeout Package Checklist',
     category: 'Closeout',
     model: 'haiku',
+    type: 'docgen',
     prompt: `Build a complete closeout package checklist for this project based on the contract and spec requirements.
 
 Organize by category:
@@ -2070,6 +2176,7 @@ Output: checklist with responsible party assigned to each item, status column (r
     label: 'Warranty Register Builder',
     category: 'Closeout',
     model: 'haiku',
+    type: 'docgen',
     prompt: `Build a complete warranty register for this project from the spec book and closeout documents.
 
 For each warranty, record:
@@ -2104,6 +2211,7 @@ After the register:
     label: 'As-Built Drawing Review',
     category: 'Closeout',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Review the as-built drawings for completeness, accuracy, and compliance with project requirements.
 
 1. COMPLETENESS CHECK:
@@ -2145,6 +2253,7 @@ Output: completeness score, list of missing/incomplete elements, format complian
     label: 'Final Payment Application Review',
     category: 'Closeout',
     model: 'sonnet',
+    type: 'analytical',
     prompt: `Review this final application for payment before processing.
 
 1. SCHEDULE OF VALUES RECONCILIATION:
@@ -2189,6 +2298,7 @@ Output: payment verification, retainage release assessment, withheld amount reco
     label: 'Project Closeout Report',
     category: 'Closeout',
     model: 'haiku',
+    type: 'docgen',
     prompt: `Generate a final project closeout report that captures lessons learned and documents project performance for future bidding and estimating use.
 
 1. PROJECT SUMMARY:
@@ -2234,6 +2344,7 @@ Format: project file ready. Direct and factual. No corporate language.`,
     label: 'Owner Turnover Package',
     category: 'Closeout',
     model: 'haiku',
+    type: 'docgen',
     prompt: `Generate the owner turnover package documentation from the project closeout data provided.
 
 1. PROJECT OVERVIEW DOCUMENT:
@@ -2332,6 +2443,7 @@ export const CATEGORIES: Category[] = Object.values(CATEGORY_META).map((meta) =>
       name: t.label,
       desc: t.prompt.split('\n')[0].replace(/^[^a-zA-Z]*/, '').slice(0, 120),
       model: t.model,
+      type: t.type,
       prompt: t.prompt,
     })),
 }));
