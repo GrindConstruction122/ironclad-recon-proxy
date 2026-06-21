@@ -53,19 +53,26 @@ export default function RunPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  useEffect(() => {
-    async function checkSub() {
-      const res = await fetch('/api/check-subscription')
-      const data = await res.json()
-      if (!data.active) router.push('/pricing')
-    }
-    checkSub()
-  }, [])
-
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+
+  // Auth state — checked lazily on RUN, not on page load
+  // This lets unauthenticated users browse the tool grid before subscribing
+  const [isAuthed, setIsAuthed] = useState<boolean | null>(null)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+
+  useEffect(() => {
+    async function checkAuth() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { setIsAuthed(false); return }
+      const res = await fetch('/api/check-subscription')
+      const data = await res.json()
+      setIsAuthed(data.active === true)
+    }
+    checkAuth()
+  }, [])
 
   useEffect(() => {
     if (status === 'complete' && outputRef.current) {
@@ -168,6 +175,13 @@ export default function RunPage() {
 
   async function handleRun() {
     if (!selectedTool) { setError('Select a tool first.'); return }
+
+    // Gate: if not authenticated or no active subscription, show the auth modal
+    if (isAuthed === false) {
+      setShowAuthModal(true)
+      return
+    }
+
     if (!projectName.trim()) { setError('Enter a project name.'); return }
 
     if (pendingFiles.some(f => f.uploading)) {
@@ -189,7 +203,7 @@ export default function RunPage() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { router.push('/login'); return }
+      if (!session) { setShowAuthModal(true); return }
 
       const fileRefs = readyFiles.map(f => ({
         name: f.uploaded!.name,
@@ -255,6 +269,95 @@ export default function RunPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#000000', color: '#f0f6ff', fontFamily: 'Arial, sans-serif' }}>
+
+      {/* ── AUTH MODAL — shown when unauthenticated user hits RUN ── */}
+      {showAuthModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.88)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: 20
+        }}>
+          <div style={{
+            background: '#0d0d0d',
+            border: '1px solid #3D4EAC',
+            borderRadius: 6, padding: 36,
+            maxWidth: 480, width: '100%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.9)'
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontWeight: 900, fontSize: '1.1rem', letterSpacing: 3, textTransform: 'uppercase', color: '#C3E3EB' }}>
+                  UNLOCK THIS TOOL
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#7F9DB1', marginTop: 4, letterSpacing: 1 }}>
+                  {selectedTool?.name || 'GRIND RECON'}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAuthModal(false)}
+                style={{ background: 'none', border: 'none', color: '#7F9DB1', fontSize: '1.4rem', cursor: 'pointer', lineHeight: 1, padding: 0 }}
+              >×</button>
+            </div>
+
+            {/* Value prop */}
+            <div style={{ background: '#061E45', border: '1px solid #003B66', borderRadius: 4, padding: '14px 16px', marginBottom: 20 }}>
+              <div style={{ fontSize: '0.78rem', color: '#C3E3EB', lineHeight: 1.6 }}>
+                <div style={{ fontWeight: 700, marginBottom: 6, color: '#ffffff' }}>What you get with RECON:</div>
+                <div style={{ marginBottom: 3 }}>🔴 Forensic scope gap and risk detection</div>
+                <div style={{ marginBottom: 3 }}>📋 Citation to exact plan sheet on every finding</div>
+                <div style={{ marginBottom: 3 }}>💰 Dollar exposure on every flag</div>
+                <div style={{ marginBottom: 3 }}>⚡ 42 tools — bid to closeout</div>
+                <div style={{ marginTop: 8, fontSize: '0.7rem', color: '#7F9DB1', fontStyle: 'italic' }}>
+                  "One missed scope item costs more than three years of RECON."
+                </div>
+              </div>
+            </div>
+
+            {/* CTA buttons */}
+            <a
+              href="/pricing"
+              style={{
+                display: 'block', width: '100%',
+                background: '#3D4EAC', border: 'none',
+                color: '#ffffff', fontWeight: 900,
+                fontSize: '0.85rem', letterSpacing: 3,
+                textTransform: 'uppercase', padding: '14px',
+                borderRadius: 4, cursor: 'pointer',
+                textAlign: 'center', textDecoration: 'none',
+                fontFamily: 'Arial, sans-serif', marginBottom: 10,
+                boxSizing: 'border-box'
+              }}
+            >
+              VIEW PLANS — FROM $49/MO
+            </a>
+            <a
+              href="/login"
+              style={{
+                display: 'block', width: '100%',
+                background: 'none',
+                border: '1px solid #003B66',
+                color: '#7F9DB1', fontWeight: 700,
+                fontSize: '0.78rem', letterSpacing: 2,
+                textTransform: 'uppercase', padding: '11px',
+                borderRadius: 4, cursor: 'pointer',
+                textAlign: 'center', textDecoration: 'none',
+                fontFamily: 'Arial, sans-serif',
+                boxSizing: 'border-box'
+              }}
+            >
+              ALREADY HAVE AN ACCOUNT — SIGN IN
+            </a>
+
+            {/* Trust line */}
+            <div style={{ textAlign: 'center', marginTop: 14, fontSize: '0.65rem', color: '#36454F', lineHeight: 1.5 }}>
+              Documents processed and discarded. Not stored. Not used for training.<br />
+              Built by an excavation contractor in Newburgh NY — not a software company.
+            </div>
+          </div>
+        </div>
+      )}
 
       {blockedFile && (
         <LargeFileModal
@@ -351,6 +454,33 @@ export default function RunPage() {
 
       {/* ── MAIN CONTENT ── */}
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px' }}>
+
+        {/* Preview mode banner — only shown to unauthenticated users */}
+        {isAuthed === false && (
+          <div style={{
+            background: 'linear-gradient(90deg, rgba(61,78,172,0.15), rgba(0,59,102,0.15))',
+            border: '1px solid rgba(61,78,172,0.4)',
+            borderRadius: 4, padding: '10px 16px',
+            marginBottom: 20,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexWrap: 'wrap', gap: 10
+          }}>
+            <div style={{ fontSize: '0.74rem', color: '#C3E3EB' }}>
+              <span style={{ fontWeight: 700, letterSpacing: 1 }}>PREVIEW MODE</span>
+              <span style={{ color: '#7F9DB1', marginLeft: 8 }}>
+                Browse all 42 tools. Select one and hit RUN to unlock.
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <a href="/login" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#7F9DB1', textDecoration: 'none', padding: '5px 10px', border: '1px solid #003B66', borderRadius: 2 }}>
+                Sign In
+              </a>
+              <a href="/pricing" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#ffffff', textDecoration: 'none', padding: '5px 12px', background: '#3D4EAC', borderRadius: 2 }}>
+                Get Access
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* File drop zone */}
         <div
