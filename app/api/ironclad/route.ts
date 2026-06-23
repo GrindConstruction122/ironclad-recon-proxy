@@ -44,7 +44,18 @@ interface FileRef {
  * return the Anthropic file_id.
  */
 async function uploadToAnthropicFiles(fileRef: FileRef): Promise<string> {
-  const fetchRes = await fetch(fileRef.signedUrl)
+  // Always generate a fresh signed URL server-side at call time.
+  // Client-supplied signedUrls may be expired by the time this runs.
+  const serviceSupabase = createServiceClient()
+  const { data: freshUrl, error: urlError } = await serviceSupabase.storage
+    .from('bid-documents')
+    .createSignedUrl(fileRef.path, 120) // 120-second TTL
+
+  if (urlError || !freshUrl?.signedUrl) {
+    throw new Error(`Failed to generate fresh signed URL for ${fileRef.name}: ${urlError?.message}`)
+  }
+
+  const fetchRes = await fetch(freshUrl.signedUrl)
   if (!fetchRes.ok) {
     throw new Error(`Failed to fetch file from storage: ${fetchRes.status}`)
   }
@@ -58,7 +69,6 @@ async function uploadToAnthropicFiles(fileRef: FileRef): Promise<string> {
 
   return uploaded.id
 }
-
 /**
  * Pre-flight check: estimate token usage before making the API call.
  * Returns an error string if the estimated token count would exceed safe limits,
